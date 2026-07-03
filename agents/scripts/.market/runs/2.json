@@ -1,53 +1,77 @@
 {
-  "run_id": "v4-live-dispute",
+  "run_id": "227092388a",
   "job_id": 2,
-  "task": "Summarize on-chain escrow in 2 sentences for a non-expert.",
-  "criteria": "Plain, 2 sentences, neutral escrow.",
-  "amount_usdc": 5.0,
-  "client": "0xBCA6f82e240C6AC36B23b4f7D21adF17e03966Fe",
-  "provider": "0xAd9121Ff0973C468B91153b99eA75Ac72DA270E1",
-  "winner": "Provider",
-  "winner_addr": "0xAd9121Ff0973C468B91153b99eA75Ac72DA270E1",
-  "committee": [
-    "0xE500a4372Bf4528ebd079cFAEf835157dcBa26e3",
-    "0x95C3960E1235E6882dEA1824CaB539BF46d31499",
-    "0x2306F3663Bb95f5f80e4460bbfd2c5B89AE56a01"
-  ],
-  "quorum": 2,
-  "tentative": "payout",
-  "committee_votes": {
-    "Evaluator A": {
-      "addr": "0xE500a4372Bf4528ebd079cFAEf835157dcBa26e3",
+  "txs": {
+    "createJob": "0x4bab43e0fdd79c2ba3969537cfde7cd0bebe3a9983f50c499cb3284d0636af70",
+    "approve": "0xbc6940933bef34e45d6aca390b496c4b5b104f97b1ba114323900577c6a8a7af",
+    "fund": "0x34304245b9cda7a7f53fb154678eb30388a3947ef1dd71b9e57f9eb16ec04cf8",
+    "commitAccept": "0xaa7686d60d98a23c1b0002b324e337c53a242dee3a85928300872e32816ed76e",
+    "revealAccept": "0xdef3055ba3da6c69c704acc13a4c710e3c8c95fdee547dcbc2c2400ed8f43236",
+    "submitWork": "0x68d2dc9a266d27728b7c38a5d993bfe5b1d3fd0412008eeca11c04fd735e22c1",
+    "finalize": "0x6ada13270e47f69efbae6da12ede3ebad33333757836601bf7950e28ba969018"
+  },
+  "accept_decisions": {
+    "Provider": {
       "accept": true,
-      "reason": "Looks acceptable."
-    },
-    "Evaluator B": {
-      "addr": "0x95C3960E1235E6882dEA1824CaB539BF46d31499",
-      "accept": true,
-      "reason": "Meets the criteria."
+      "reason": "The task is simple and quick to complete, and the reward is fair for the minimal effort required."
     }
   },
-  "dispute": {
-    "disputer": "0xBCA6f82e240C6AC36B23b4f7D21adF17e03966Fe",
-    "bond": "5 6TEST",
-    "uma_assertion": "0x26d55b3fc6b3ba5cc1d3aa8dce8f4f7d4b92abbc46ad86eed222085bf2783167",
-    "ruling": "overturned -> refund (optimistic settlement on Sepolia OOv3)"
+  "winner": "Provider",
+  "winner_addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+  "irys": {
+    "id": "7hkpKRnAQnwGPJS8ubvS3KStDFV6q8rCdJENE9GM7H8e",
+    "url": "https://devnet.irys.xyz/7hkpKRnAQnwGPJS8ubvS3KStDFV6q8rCdJENE9GM7H8e",
+    "bytes": 259,
+    "price": "1498270904449",
+    "funded": "0"
   },
+  "deliverable": "Little baby rabbit yawned as the moon peeked through the window. Mama rabbit tucked the cozy blanket up to bunny's chin and whispered, \"Shh, the stars are singing lullabies.\" Bunny's eyes grew heavy, and with one last wiggle of nose, drifted off to dreamland.",
+  "committee": [
+    "0x48f2a3749a18684c31e322abef3e8e855c116f06",
+    "0x78cf963c21268eb384ba24e7c17eb6e5a4b7e5f1",
+    "0x124aec0d4f2782591b3be95b520f05779cb30ccb"
+  ],
+  "committee_votes": {
+    "Evaluator A": {
+      "addr": "0x48f2a3749a18684c31e322abef3e8e855c116f06",
+      "accept": true,
+      "reason": "The deliverable is a gentle bedtime story about a baby rabbit in 4 sentences, meeting the acceptance criteria."
+    },
+    "Evaluator C": {
+      "addr": "0x124aec0d4f2782591b3be95b520f05779cb30ccb",
+      "accept": true,
+      "reason": "The story is gentle, features a baby character, and perfectly adheres to the specified sentence count."
+    }
+  },
+  "vote_txs": {
+    "Evaluator A": "0x4f0654c2a16b8f8c45c8e810f0e931c974b6f940ed635816cef87819c96ceaab",
+    "Evaluator C": "0xa285352b3773ad267c3ba3994473031d067b2f2bf305bdd2c5bafce45af136e5"
+  },
+  "tentative": "payout",
   "verdict": {
-    "accept": false,
-    "reason": "committee tentative payout; client disputed; UMA OOv3 ruled -> refund"
+    "accept": true,
+    "reason": "committee 2-0 (quorum 2)"
   },
-  "branch": "refund",
-  "final_status": "Rejected",
+  "branch": "payout",
   "status": "settled",
-  "txs": {
-    "createJob": "0x88e0c76ad163fd7f7b2438a05bb46b110cfb19f094b6b537d23f0570fee5b8b4",
-    "fund": "0x8b741ad13d319d8656d8683c253892ba63fe0fda8694191376745fba65e0152a",
-    "revealAccept": "0xa92b5c776f83241f4a56c119977b15287852566d52a912f5e840d6777a41e3b8",
-    "submitWork": "0x49dcbe70f61512c04a556ce85711bd06fb05c0a4bae80a5384c72c68a849cf74",
-    "vote1": "0x22602f6e013120952159d8d6f498c12e1ce8e75cf0ef1709e0ac47e5537e236f",
-    "vote2": "0x1518e8c453bc2e6b764d37118c86a12f715cee248ca94fb5c82a8bfb626ec1fb",
-    "dispute": "0x143a0531ffe7f2ae007f05941ef6abfcd79c69a9d01e420f6d4a8d152fd12e10",
-    "settle": "0x8e40fdc9a358fca1a93b3eef6c740f8bfbfb8e13069a9cc576bd77676efac2c1"
-  }
+  "task": "tell me a baby bedtime story",
+  "criteria": "a gentle bedtime story about a baby; 2-4 sentences",
+  "amount_usdc": 5.0,
+  "client": "0x6dfbd0ac9feb5bb9a9ffeaf54df203c1633c1ddd",
+  "fund_decision": {
+    "fund": true,
+    "reason": "The task is simple, legitimate, and well within budget at 5 USDC."
+  },
+  "spec_hash": "0x31111d824482c224c39afd1175efc08d5ca99b98c96f159e7eff668ce29c36a2",
+  "quorum": 2,
+  "commits": {
+    "Provider": {
+      "addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+      "tx": "0xaa7686d60d98a23c1b0002b324e337c53a242dee3a85928300872e32816ed76e"
+    }
+  },
+  "provider": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+  "final_status": "Completed",
+  "content_verified": true,
+  "escrow": "0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C"
 }
