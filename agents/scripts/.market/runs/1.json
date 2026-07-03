@@ -1,40 +1,64 @@
 {
-  "run_id": "v4-live-committee",
+  "run_id": "df517d32b1",
   "job_id": 1,
-  "task": "Summarize on-chain escrow in 2 sentences for a non-expert.",
-  "criteria": "Plain, 2 sentences, neutral escrow.",
-  "amount_usdc": 5.0,
-  "client": "0xBCA6f82e240C6AC36B23b4f7D21adF17e03966Fe",
-  "provider": "0xAd9121Ff0973C468B91153b99eA75Ac72DA270E1",
-  "winner": "Provider",
-  "winner_addr": "0xAd9121Ff0973C468B91153b99eA75Ac72DA270E1",
-  "committee": [
-    "0xE500a4372Bf4528ebd079cFAEf835157dcBa26e3",
-    "0x95C3960E1235E6882dEA1824CaB539BF46d31499",
-    "0x2306F3663Bb95f5f80e4460bbfd2c5B89AE56a01"
-  ],
-  "quorum": 2,
-  "tentative": "payout",
-  "committee_votes": {
-    "Evaluator A": {
-      "addr": "0xE500a4372Bf4528ebd079cFAEf835157dcBa26e3",
+  "txs": {
+    "createJob": "0x196afd36f9d1d59ed487839ace4e3433141513dc216a6ddc1904150e557ab12d",
+    "approve": "0xb98a0aeb4014e863d2cbf36f8575d4119ea331d8f0549a00fbf35268b322c7fa",
+    "fund": "0x87e4212cdb4a63ac5c6f171a5a575eb4d3c168224252aed9aa11bb07e596b24f",
+    "commitAccept": "0xa5cb7016db6b413456f1a8f6d1a570682bbba078b91af727952295a16c0f4e0c",
+    "revealAccept": "0x310dc923b3cb509be4c443e44a19016e88ff3e2e28c53919e8eab726ece64655",
+    "submitWork": "0x43a154ff69d90619f643d2e1725691b67a6015ad7a64061ccf1640d039d4ad7f"
+  },
+  "accept_decisions": {
+    "Provider": {
       "accept": true,
-      "reason": "Correctly explains escrow."
-    },
-    "Evaluator B": {
-      "addr": "0x95C3960E1235E6882dEA1824CaB539BF46d31499",
-      "accept": true,
-      "reason": "Meets the 2-sentence + neutral-escrow criteria."
+      "reason": "The task is simple, the reward is fair, and I can easily deliver a clear explanation."
     }
   },
-  "verdict": {
-    "accept": true,
-    "reason": "committee 2-0 (quorum 2) -> finalized after dispute window"
+  "winner": "Provider",
+  "winner_addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+  "irys": {
+    "id": "7nVvNfuVKvZmyd2pf2Wyh988mxUabuxDZdveSS2FnFFk",
+    "url": "https://devnet.irys.xyz/7nVvNfuVKvZmyd2pf2Wyh988mxUabuxDZdveSS2FnFFk",
+    "bytes": 402,
+    "price": "1496702441169",
+    "funded": "0"
   },
-  "branch": "payout",
-  "final_status": "Completed",
-  "status": "settled",
-  "txs": {
-    "finalize": "0x3b552c5e94eaf38868159bb43cb3d933000132405006d1af3c3bbf9bf4827611"
-  }
+  "deliverable": "An on-chain escrow works like a neutral digital vault that holds the buyer's money until the seller delivers what was promised. Because the funds are locked in a smart contract, neither party can mess with them alone\u2014both must follow the agreed rules for the money to be released. This lets strangers trade safely without needing to trust each other, since the escrow automatically enforces the deal.",
+  "committee": [
+    "0x48f2a3749a18684c31e322abef3e8e855c116f06",
+    "0x78cf963c21268eb384ba24e7c17eb6e5a4b7e5f1",
+    "0x124aec0d4f2782591b3be95b520f05779cb30ccb"
+  ],
+  "committee_votes": {
+    "Evaluator C": {
+      "addr": "0x124aec0d4f2782591b3be95b520f05779cb30ccb",
+      "accept": true,
+      "reason": "The explanation is clear, uses plain language, is exactly three sentences, and correctly describes the neutral escrow holding funds, meeting all acceptance criteria."
+    }
+  },
+  "vote_txs": {
+    "Evaluator C": "0xadf6546dcf0c3fec4ffc895d6d6ceff37c402b339a6d6008d9295ac8c2979db0"
+  },
+  "tentative": null,
+  "verdict": null,
+  "branch": null,
+  "status": "submitted",
+  "task": "Write a clear 2-3 sentence explanation, for a non-expert, of how an on-chain escrow lets two agents who don't trust each other transact safely.",
+  "criteria": "Plain language, 2-3 sentences, mentions the neutral escrow holding funds.",
+  "amount_usdc": 5.0,
+  "client": "0x6dfbd0ac9feb5bb9a9ffeaf54df203c1633c1ddd",
+  "fund_decision": {
+    "fund": true,
+    "reason": "The task is legitimate and the price is reasonable within the available budget."
+  },
+  "spec_hash": "0x0318817b9ad7a678026e61b25ec587acf1e8a8bceb6d8e292decfda7ed63723f",
+  "quorum": 2,
+  "commits": {
+    "Provider": {
+      "addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+      "tx": "0xa5cb7016db6b413456f1a8f6d1a570682bbba078b91af727952295a16c0f4e0c"
+    }
+  },
+  "provider": "0xef9349b3273b1a54faaf701231f499fe0282e643"
 }

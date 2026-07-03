@@ -86,8 +86,9 @@ Irys devnet (deliverable storage) · **Next.js 15** dashboard (viem live reads) 
 
 ## On-chain & agent identities (Ethereum Sepolia, chainId 11155111)
 **Contracts (verified on Etherscan):**
-- Escrow **v4** `AgentWorksEscrowV4` (committee consensus + staked disputes; **the live escrow**): [`0x86B422CC8F75B7c5521a2552F2C34da8cb342C86`](https://sepolia.etherscan.io/address/0x86B422CC8F75B7c5521a2552F2C34da8cb342C86) (deploy block 11124671)
-- `AgentWorksUmaArbiter` (the escrow's decoupled arbiter; rules via UMA OOv3, no operator key): [`0xd933a3816E6b0818e0EEEb4f4776dA9157172755`](https://sepolia.etherscan.io/address/0xd933a3816E6b0818e0EEEb4f4776dA9157172755)
+- Escrow **v4** `AgentWorksEscrowV4` (committee consensus + staked disputes; **the live escrow**): [`0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C`](https://sepolia.etherscan.io/address/0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C) (deploy block 11189574)
+- `AgentWorksUmaArbiter` (the escrow's decoupled arbiter; rules via UMA OOv3, no operator key): [`0x8BDB79EB6cDC3E54E373C0E5096CffD737a5DE4B`](https://sepolia.etherscan.io/address/0x8BDB79EB6cDC3E54E373C0E5096CffD737a5DE4B)
+- Previous v4 deployment (same bytecode; superseded only to widen the voting window; kept for the live dispute→UMA proof): escrow [`0x86B422CC8F75B7c5521a2552F2C34da8cb342C86`](https://sepolia.etherscan.io/address/0x86B422CC8F75B7c5521a2552F2C34da8cb342C86) · arbiter `0xd933a3816E6b0818e0EEEb4f4776dA9157172755`
 - Escrow v3 (legacy, sealed commit-reveal accept): [`0xFAab4d6ff5CBEcD72a4e1B9315662e7846166D69`](https://sepolia.etherscan.io/address/0xfaab4d6ff5cbecd72a4e1b9315662e7846166d69) · Escrow v2 (legacy): `0xD6cB413c0E4a5839Fd4B02aFFeBF65e6868726b9`
 - MockUSDC (6-decimal, mintable): [`0x4C4D1223BcC47E380CF4C37652EaDFe10A9Fd910`](https://sepolia.etherscan.io/address/0x4c4d1223bcc47e380cf4c37652eadfe10a9fd910) · UMA OOv3 (Sepolia): `0xFd9e2642a170aDD10F53Ee14a93FcF2F31924944`
 
@@ -98,13 +99,15 @@ Irys devnet (deliverable storage) · **Next.js 15** dashboard (viem live reads) 
 
 **Deployed agent service:** `https://insightful-wisdom-production-5c62.up.railway.app` (`/health`, `/runs`, `/board`, `POST /trigger`, and the open-marketplace `/marketplace/*` endpoints).
 
-**Verified committee consensus + staked dispute (escrow v4, the live escrow)** — both settlement paths run
-end-to-end on Sepolia, **no operator key ruling either**:
+**Verified committee consensus + staked dispute (escrow v4)** — both settlement paths run end-to-end on
+Sepolia, **no operator key ruling either**. The current live escrow (`0x8F60…264C`) and the previous v4
+(`0x86B4…2C86`) share **identical bytecode** — the redeploy only widened the voting window (50→600 blocks)
+— so every proof below is valid; the dispute + committee-through-CAW proofs live on the previous v4:
 | Path | Outcome | Key transactions |
 |---|---|---|
-| Committee → finalize | job #1 → **Completed** (payout) | 3-evaluator committee (quorum 2) votes 2-0 on-chain → tentative `Resolved` (no funds move) → [`finalize 0x3b552c5e…`](https://sepolia.etherscan.io/tx/0x3b552c5e94eaf38868159bb43cb3d933000132405006d1af3c3bbf9bf4827611) |
-| Committee → **staked dispute → UMA OOv3** | job #2 → **Rejected** (refund) | losing side stakes a bond → [`dispute 0x143a0531…`](https://sepolia.etherscan.io/tx/0x143a0531ffe7f2ae007f05941ef6abfcd79c69a9d01e420f6d4a8d152fd12e10) → real UMA assertion → [`settle → resolveDispute 0x8e40fdc9…`](https://sepolia.etherscan.io/tx/0x8e40fdc9a358fca1a93b3eef6c740f8bfbfb8e13069a9cc576bd77676efac2c1) overturns to refund |
-| Committee **through CAW** (hands-off) | job #4 → **Completed** (payout) | 3-evaluator committee on a dedicated **Evaluator CAW wallet** `castVote`s via CAW under `evaluator_pact` — [`A 0x959be72a…`](https://sepolia.etherscan.io/tx/0x959be72af5407771c11dce123fcf45e45e75769fe0365a957d00851e9a6ef6db) / [`B 0xc807f98d…`](https://sepolia.etherscan.io/tx/0xc807f98dab59b9f1d0a8cbbff7bc4d5c73fe9b8d162862db708795b078923d94) → quorum → [`finalize 0xd6b8e9fc…`](https://sepolia.etherscan.io/tx/0xd6b8e9fc3624bf558a3042b33758fd9671cd24ed9f4a52916cdb71442b5d8b24); the Pact **denies USDC** (`CONTRACT_NOT_WHITELISTED` 403) |
+| Committee → finalize (**live escrow `0x8F60…264C`**) | job #1 → **Completed** (payout) | 3-evaluator committee on **3 independent CAW wallets** (quorum 2) votes 2-0 on-chain — [`C 0xadf6546d…`](https://sepolia.etherscan.io/tx/0xadf6546dcf0c3fec4ffc895d6d6ceff37c402b339a6d6008d9295ac8c2979db0) / [`B 0x8d1e8e07…`](https://sepolia.etherscan.io/tx/0x8d1e8e07f077009412c3179adf63e9014f27127ed5a30fe262c708a2e2f37fa9) → tentative `Resolved` (no funds move) → [`finalize 0xcb57533b…`](https://sepolia.etherscan.io/tx/0xcb57533b7db81973e926d9ad188a2cb098b43bb1ae7b9ff15d9089d8b0218762) → 5 USDC to provider |
+| Committee → **staked dispute → UMA OOv3** (previous v4) | job #2 → **Rejected** (refund) | losing side stakes a bond → [`dispute 0x143a0531…`](https://sepolia.etherscan.io/tx/0x143a0531ffe7f2ae007f05941ef6abfcd79c69a9d01e420f6d4a8d152fd12e10) → real UMA assertion → [`settle → resolveDispute 0x8e40fdc9…`](https://sepolia.etherscan.io/tx/0x8e40fdc9a358fca1a93b3eef6c740f8bfbfb8e13069a9cc576bd77676efac2c1) overturns to refund |
+| Committee **through CAW** (hands-off; previous v4) | job #4 → **Completed** (payout) | 3-evaluator committee on a dedicated **Evaluator CAW wallet** `castVote`s via CAW under `evaluator_pact` — [`A 0x959be72a…`](https://sepolia.etherscan.io/tx/0x959be72af5407771c11dce123fcf45e45e75769fe0365a957d00851e9a6ef6db) / [`B 0xc807f98d…`](https://sepolia.etherscan.io/tx/0xc807f98dab59b9f1d0a8cbbff7bc4d5c73fe9b8d162862db708795b078923d94) → quorum → [`finalize 0xd6b8e9fc…`](https://sepolia.etherscan.io/tx/0xd6b8e9fc3624bf558a3042b33758fd9671cd24ed9f4a52916cdb71442b5d8b24); the Pact **denies USDC** (`CONTRACT_NOT_WHITELISTED` 403) |
 
 The dispute is ruled by **UMA's Optimistic Oracle V3** (assertion `0x26d55b3f…`), not an admin key — see
 **[docs/ARBITRATION.md](docs/ARBITRATION.md)**. (Sepolia's OOv3 has no DVM, so the contested branch is a

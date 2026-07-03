@@ -29,8 +29,9 @@ contract moves them, and only along the lifecycle (with a deadline refund as the
   escrow v4 pointed at it. DeployV3/DeployV2/DeployMockUSDC remain.
 
 ## Live addresses (Ethereum Sepolia, chainId 11155111, all verified on Etherscan)
-- Escrow v4 (LIVE, committee + disputes): `0x86B422CC8F75B7c5521a2552F2C34da8cb342C86` (deploy block 11124671)
-- UMA arbiter adapter (the escrow's `arbiter`): `0xd933a3816E6b0818e0EEEb4f4776dA9157172755`
+- Escrow v4 (LIVE, committee + disputes): `0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C` (deploy block 11189574; votingWindow 600 / disputeWindow 50 / resolveWindow 50 blocks)
+- UMA arbiter adapter (the escrow's `arbiter`): `0x8BDB79EB6cDC3E54E373C0E5096CffD737a5DE4B`
+- Previous v4 (identical bytecode; superseded only to widen the 50→600-block voting window; live dispute→UMA proof settled here): escrow `0x86B422CC8F75B7c5521a2552F2C34da8cb342C86` · arbiter `0xd933a3816E6b0818e0EEEb4f4776dA9157172755`
 - Escrow v3 (legacy, commit-reveal): `0xFAab4d6ff5CBEcD72a4e1B9315662e7846166D69`
 - Escrow v2 (legacy, raw acceptJob): `0xD6cB413c0E4a5839Fd4B02aFFeBF65e6868726b9`
 - MockUSDC: `0x4C4D1223BcC47E380CF4C37652EaDFe10A9Fd910` · UMA OOv3: `0xFd9e2642a170aDD10F53Ee14a93FcF2F31924944`

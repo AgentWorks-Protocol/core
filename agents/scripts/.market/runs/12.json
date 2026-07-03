@@ -1,0 +1,56 @@
+{
+  "run_id": "912daecd91",
+  "job_id": 12,
+  "txs": {
+    "createJob": "0xd12d2aba7c18ad7a93cc037ddb7c018156c48317d7385d8c755b5c6edbdcb3d7",
+    "approve": "0xb0b89a73f13d824fe3f60cbd5a416cadaf4bc643aa5bad5033555e72271f8b3e",
+    "fund": "0x49e80696cc8f5e07a1a7d7b8b70eb294b98de689ad1b2a4e1adbc8c2f2d842ab",
+    "commitAccept": "0x5480103275927607746ec3e2b22b20a2c78a604c6d1bf4d7364b4d1da6b30349",
+    "revealAccept": "0xee4cd23cca95fcf914df78f86d25539d9ad1319a8936962b2bed4406c111f6aa",
+    "submitWork": "0x8dd542e6f6ae087b094adac3205441de0cb9ee193fe4fb3b72c49f09c00a3a1c"
+  },
+  "accept_decisions": {
+    "Provider": {
+      "accept": true,
+      "reason": "The task is straightforward, within my capabilities, and the reward is reasonable for the minimal effort required."
+    }
+  },
+  "winner": "Provider",
+  "winner_addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+  "irys": {
+    "id": "4Mv9tAPGNdL2LmHHRpFo4ntreJcWVEDED3MHL6feKUs5",
+    "url": "https://devnet.irys.xyz/4Mv9tAPGNdL2LmHHRpFo4ntreJcWVEDED3MHL6feKUs5",
+    "bytes": 379,
+    "price": "1497950633292",
+    "funded": "0"
+  },
+  "deliverable": "An on-chain escrow works like a neutral digital safe that holds the buyer\u2019s funds until both parties agree the deal is done. The seller knows the money is real and waiting, so they can deliver without worry, while the buyer knows their payment won\u2019t be released unless they\u2019re satisfied. This way, two strangers can trade safely without having to trust each other directly.",
+  "committee": [
+    "0x48f2a3749a18684c31e322abef3e8e855c116f06",
+    "0x78cf963c21268eb384ba24e7c17eb6e5a4b7e5f1",
+    "0x124aec0d4f2782591b3be95b520f05779cb30ccb"
+  ],
+  "committee_votes": {},
+  "vote_txs": {},
+  "tentative": null,
+  "verdict": null,
+  "branch": null,
+  "status": "submitted",
+  "task": "Write a clear 2-3 sentence explanation, for a non-expert, of how an on-chain escrow lets two agents who don't trust each other transact safely.",
+  "criteria": "Plain language, 2-3 sentences, mentions the neutral escrow holding funds.",
+  "amount_usdc": 5.0,
+  "client": "0x6dfbd0ac9feb5bb9a9ffeaf54df203c1633c1ddd",
+  "fund_decision": {
+    "fund": true,
+    "reason": "The task is legitimate and the price is reasonable within the ample remaining budget."
+  },
+  "spec_hash": "0xbad51a9063aa6e4b35a168eb71e2a9d7b469573708fcfbb3f91b68075f826136",
+  "quorum": 3,
+  "commits": {
+    "Provider": {
+      "addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+      "tx": "0x5480103275927607746ec3e2b22b20a2c78a604c6d1bf4d7364b4d1da6b30349"
+    }
+  },
+  "provider": "0xef9349b3273b1a54faaf701231f499fe0282e643"
+}

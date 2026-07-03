@@ -1,0 +1,64 @@
+{
+  "run_id": "4961fd8ece",
+  "job_id": 13,
+  "txs": {
+    "createJob": "0x992fe37e1ce5773c78a03efcb521d15b57089b91097e96fc1644af66096e609d",
+    "approve": "0xd18dbdc121cbe183ee0595a394034bcc9d140ca7e35e5820dfd51ba196e91afa",
+    "fund": "0x38c036db072b793d3d10301f5215df25d79202e525a1d294c10ea1c7bc66f357",
+    "commitAccept": "0x1984f3d0b46ad99a15d7c7b2cf8a2d2ca397c5087734c22b4509aa2ca4a7eb29",
+    "revealAccept": "0x310553e0273976ebaeabdabb24477e4fba839ced01b9eca1cfc0fb75bd7b733e",
+    "submitWork": "0x675713d6507e80ff86beedb8a7cae90463592a641e0c5c8635ddba64fa8aaed9"
+  },
+  "accept_decisions": {
+    "Provider": {
+      "accept": true,
+      "reason": "I can easily write a clear, non-expert explanation in 2-3 sentences as specified, and 5 USDC is a fair reward for this simple task."
+    }
+  },
+  "winner": "Provider",
+  "winner_addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+  "irys": {
+    "id": "GzZhCz8MA2d8HqDjn7rCzWYn2hBKUzpdSLHPPbNRFXvt",
+    "url": "https://devnet.irys.xyz/GzZhCz8MA2d8HqDjn7rCzWYn2hBKUzpdSLHPPbNRFXvt",
+    "bytes": 320,
+    "price": "1504959839691",
+    "funded": "8100408331"
+  },
+  "deliverable": "An on-chain escrow works by having a neutral smart contract hold the buyer\u2019s funds until both parties meet the agreed conditions. Once the seller delivers what was promised, the contract automatically releases the payment to them. This way, neither party can cheat\u2014the funds are locked safely until the deal is done.",
+  "committee": [
+    "0x48f2a3749a18684c31e322abef3e8e855c116f06",
+    "0x78cf963c21268eb384ba24e7c17eb6e5a4b7e5f1",
+    "0x124aec0d4f2782591b3be95b520f05779cb30ccb"
+  ],
+  "committee_votes": {
+    "Evaluator C": {
+      "addr": "0x124aec0d4f2782591b3be95b520f05779cb30ccb",
+      "accept": true,
+      "reason": "The explanation is clear, uses plain language, is exactly three sentences long, and correctly mentions the neutral smart contract holding funds."
+    }
+  },
+  "vote_txs": {
+    "Evaluator C": "0x96b0abd050b9db3eaf3bb19ad404738db82b977f21c87c989a904e1fe0999ff3"
+  },
+  "tentative": null,
+  "verdict": null,
+  "branch": null,
+  "status": "submitted",
+  "task": "Write a clear 2-3 sentence explanation, for a non-expert, of how an on-chain escrow lets two agents who don't trust each other transact safely.",
+  "criteria": "Plain language, 2-3 sentences, mentions the neutral escrow holding funds.",
+  "amount_usdc": 5.0,
+  "client": "0x6dfbd0ac9feb5bb9a9ffeaf54df203c1633c1ddd",
+  "fund_decision": {
+    "fund": true,
+    "reason": "The task is legitimate, the price is reasonable, and the remaining budget is sufficient."
+  },
+  "spec_hash": "0xd0af06dcd59f21f0e9e48e488fe1b1bd0b1bac8772986ebe058cbd38d96c8246",
+  "quorum": 2,
+  "commits": {
+    "Provider": {
+      "addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+      "tx": "0x1984f3d0b46ad99a15d7c7b2cf8a2d2ca397c5087734c22b4509aa2ca4a7eb29"
+    }
+  },
+  "provider": "0xef9349b3273b1a54faaf701231f499fe0282e643"
+}
