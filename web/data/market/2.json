@@ -1,0 +1,77 @@
+{
+  "run_id": "227092388a",
+  "job_id": 2,
+  "txs": {
+    "createJob": "0x4bab43e0fdd79c2ba3969537cfde7cd0bebe3a9983f50c499cb3284d0636af70",
+    "approve": "0xbc6940933bef34e45d6aca390b496c4b5b104f97b1ba114323900577c6a8a7af",
+    "fund": "0x34304245b9cda7a7f53fb154678eb30388a3947ef1dd71b9e57f9eb16ec04cf8",
+    "commitAccept": "0xaa7686d60d98a23c1b0002b324e337c53a242dee3a85928300872e32816ed76e",
+    "revealAccept": "0xdef3055ba3da6c69c704acc13a4c710e3c8c95fdee547dcbc2c2400ed8f43236",
+    "submitWork": "0x68d2dc9a266d27728b7c38a5d993bfe5b1d3fd0412008eeca11c04fd735e22c1",
+    "finalize": "0x6ada13270e47f69efbae6da12ede3ebad33333757836601bf7950e28ba969018"
+  },
+  "accept_decisions": {
+    "Provider": {
+      "accept": true,
+      "reason": "The task is simple and quick to complete, and the reward is fair for the minimal effort required."
+    }
+  },
+  "winner": "Provider",
+  "winner_addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+  "irys": {
+    "id": "7hkpKRnAQnwGPJS8ubvS3KStDFV6q8rCdJENE9GM7H8e",
+    "url": "https://devnet.irys.xyz/7hkpKRnAQnwGPJS8ubvS3KStDFV6q8rCdJENE9GM7H8e",
+    "bytes": 259,
+    "price": "1498270904449",
+    "funded": "0"
+  },
+  "deliverable": "Little baby rabbit yawned as the moon peeked through the window. Mama rabbit tucked the cozy blanket up to bunny's chin and whispered, \"Shh, the stars are singing lullabies.\" Bunny's eyes grew heavy, and with one last wiggle of nose, drifted off to dreamland.",
+  "committee": [
+    "0x48f2a3749a18684c31e322abef3e8e855c116f06",
+    "0x78cf963c21268eb384ba24e7c17eb6e5a4b7e5f1",
+    "0x124aec0d4f2782591b3be95b520f05779cb30ccb"
+  ],
+  "committee_votes": {
+    "Evaluator A": {
+      "addr": "0x48f2a3749a18684c31e322abef3e8e855c116f06",
+      "accept": true,
+      "reason": "The deliverable is a gentle bedtime story about a baby rabbit in 4 sentences, meeting the acceptance criteria."
+    },
+    "Evaluator C": {
+      "addr": "0x124aec0d4f2782591b3be95b520f05779cb30ccb",
+      "accept": true,
+      "reason": "The story is gentle, features a baby character, and perfectly adheres to the specified sentence count."
+    }
+  },
+  "vote_txs": {
+    "Evaluator A": "0x4f0654c2a16b8f8c45c8e810f0e931c974b6f940ed635816cef87819c96ceaab",
+    "Evaluator C": "0xa285352b3773ad267c3ba3994473031d067b2f2bf305bdd2c5bafce45af136e5"
+  },
+  "tentative": "payout",
+  "verdict": {
+    "accept": true,
+    "reason": "committee 2-0 (quorum 2)"
+  },
+  "branch": "payout",
+  "status": "settled",
+  "task": "tell me a baby bedtime story",
+  "criteria": "a gentle bedtime story about a baby; 2-4 sentences",
+  "amount_usdc": 5.0,
+  "client": "0x6dfbd0ac9feb5bb9a9ffeaf54df203c1633c1ddd",
+  "fund_decision": {
+    "fund": true,
+    "reason": "The task is simple, legitimate, and well within budget at 5 USDC."
+  },
+  "spec_hash": "0x31111d824482c224c39afd1175efc08d5ca99b98c96f159e7eff668ce29c36a2",
+  "quorum": 2,
+  "commits": {
+    "Provider": {
+      "addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+      "tx": "0xaa7686d60d98a23c1b0002b324e337c53a242dee3a85928300872e32816ed76e"
+    }
+  },
+  "provider": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+  "final_status": "Completed",
+  "content_verified": true,
+  "escrow": "0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C"
+}

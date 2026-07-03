@@ -39,7 +39,9 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
 
   const clean = (s?: string | null) => (s ? s.replace(/[—–]/g, "-") : s); // normalize LLM dashes for display
   const amount = run?.amount_usdc ?? live?.amountUsdc ?? 0;
-  const statusLabel = live?.statusLabel ?? run?.final_status ?? "-";
+  // Prefer the artifact's own settled status (self-contained + escrow-correct); fall back to the live chain
+  // read only when the artifact has none (e.g. an in-flight or artifact-less job).
+  const statusLabel = run?.final_status ?? live?.statusLabel ?? "-";
   const badge = run ? runBadge(run) : runBadge({ job_id: jobId, final_status: live!.statusLabel } as AgentRun);
   const title = clean(run?.task) ?? `Escrow job #${jobId}`;
   const provider = run?.provider ?? live?.provider ?? "";
@@ -47,7 +49,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
   const raced = accepts.length > 1;
   const steps = STEP_DEFS.filter((s) => run?.txs?.[s.key]);
   // The settling tx from the artifact: v4 finalize/claimRefund, or legacy v2/v3 complete/reject.
-  const artifactSettleTx = run?.txs?.complete || run?.txs?.reject || run?.txs?.finalize || run?.txs?.claimRefund;
+  const artifactSettleTx = run?.txs?.complete || run?.txs?.reject || run?.txs?.finalize || run?.txs?.claimRefund || run?.txs?.settle;
   // For jobs whose artifact has no settlement yet (or no artifact at all, e.g. MCP-settled), recover the
   // settling tx + outcome from chain events across both v4 escrows.
   const chainSettle = !artifactSettleTx ? await settlementV2(jobId) : null;

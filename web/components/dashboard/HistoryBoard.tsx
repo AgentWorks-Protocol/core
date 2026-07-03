@@ -89,8 +89,8 @@ export function HistoryBoard({ seed }: { seed: AgentRun[] }) {
         <div className="s"><div className="k">Refunded</div><div className="v" style={{ color: "var(--reclaim)" }}>{refunded}</div></div>
         <div className="s"><div className="k">Settlement rate</div><div className="v" style={{ color: "var(--settled)" }}>{rate}%</div></div>
         <div className="s" style={{ marginLeft: "auto", textAlign: "right" }}>
-          <div className="k">Escrow v2</div>
-          <div className="v"><a href={addrUrl(CFG.escrowV2)} target="_blank" rel="noreferrer">{shortHex(CFG.escrowV2)} ↗</a></div>
+          <div className="k">Live escrow (v4)</div>
+          <div className="v"><a href={addrUrl(CFG.escrowV4)} target="_blank" rel="noreferrer">{shortHex(CFG.escrowV4)} ↗</a></div>
         </div>
       </div>
     </div>
