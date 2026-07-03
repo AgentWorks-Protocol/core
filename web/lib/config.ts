@@ -13,8 +13,8 @@ export const CFG = {
   escrowV3: env("NEXT_PUBLIC_ESCROW_V3_ADDRESS", "0xFAab4d6ff5CBEcD72a4e1B9315662e7846166D69") as `0x${string}`,
   // v4 open-marketplace escrow: committee (M-of-N) consensus evaluation + staked disputes escalating to a
   // decoupled, decentralized arbiter (UMA OOv3). This is the LIVE marketplace the dashboard reads.
-  escrowV4: env("NEXT_PUBLIC_ESCROW_V4_ADDRESS", "0x86B422CC8F75B7c5521a2552F2C34da8cb342C86") as `0x${string}`,
-  umaArbiter: env("NEXT_PUBLIC_UMA_ARBITER", "0xd933a3816E6b0818e0EEEb4f4776dA9157172755") as `0x${string}`,
+  escrowV4: env("NEXT_PUBLIC_ESCROW_V4_ADDRESS", "0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C") as `0x${string}`,
+  umaArbiter: env("NEXT_PUBLIC_UMA_ARBITER", "0x8BDB79EB6cDC3E54E373C0E5096CffD737a5DE4B") as `0x${string}`,
   // Deployed autonomous agent service (Railway). The dashboard is a live window onto these agents:
   // "Post job" fires POST /trigger and the board watches them reason + settle. Empty → live-trigger UI hidden.
   agentApi: env("NEXT_PUBLIC_AGENT_API", "https://insightful-wisdom-production-5c62.up.railway.app").replace(/\/$/, ""),

@@ -61,19 +61,29 @@ live on Ethereum Sepolia. The ruling authority is UMA's economic oracle, not any
 3. If it **is** counter-disputed, UMA's DVM resolves it (on mainnet) and the same callback fires.
 
 **Live deployment (Sepolia, verified):**
-- `AgentWorksEscrowV4`: `0x86B422CC8F75B7c5521a2552F2C34da8cb342C86` (deploy block 11124671; disputeWindow 50 blocks)
-- `AgentWorksUmaArbiter`: `0xd933a3816E6b0818e0EEEb4f4776dA9157172755` (its `arbiter`)
+- `AgentWorksEscrowV4` (live): `0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C` (deploy block 11189574;
+  votingWindow 600, disputeWindow 50, resolveWindow 50 blocks)
+- `AgentWorksUmaArbiter` (live): `0x8BDB79EB6cDC3E54E373C0E5096CffD737a5DE4B` (its `arbiter`)
 - UMA OOv3: `0xFd9e2642a170aDD10F53Ee14a93FcF2F31924944` · bond currency `6TEST`
   `0x3870419Ba2BBf0127060bCB37f69A1b1C090992B` (UMA-whitelisted, 6-dp) · bond + liveness are ctor params.
+- Previous v4 (identical bytecode, superseded only to widen the voting window 50→600 blocks; retained
+  because the live dispute below settled on it): escrow `0x86B422CC8F75B7c5521a2552F2C34da8cb342C86`,
+  arbiter `0xd933a3816E6b0818e0EEEb4f4776dA9157172755`.
 
-### Demonstrated live on Sepolia (job #2)
+### Demonstrated live on Sepolia
 
-A full staked dispute ran end-to-end against the real UMA OOv3, **no operator key**: committee resolved
-tentative **payout** → the losing side (client) staked the bond and `dispute`d → the adapter posted a real
-UMA assertion (`assertionId 0x26d55b3f…`) → after liveness anyone `settle`d → UMA's
-`assertionResolvedCallback` → `escrow.resolveDispute` → the outcome was **overturned to refund**
-(`Rejected`). Txs: dispute `0x143a0531…`, settle (UMA → resolveDispute) `0x8e40fdc9…`. The committee→finalize
-happy path settled job #1 → `Completed` (`finalize 0x3b552c5e…`) on the same escrow.
+**Committee → finalize (live escrow `0x8F60…264C`, job #1):** a 3-evaluator committee on **3 independent
+CAW wallets** (quorum 2) judged the deliverable and `castVote`d on-chain 2-0 — `C 0xadf6546d…`, `B
+0x8d1e8e07…` → tentative `Resolved` (no funds move) → after the dispute window anyone `finalize`d
+(`0xcb57533b…`) → `Completed`, 5 USDC to the provider.
+
+**Committee → staked dispute → UMA (previous v4 `0x86B4…2C86`, job #2):** a full staked dispute ran
+end-to-end against the real UMA OOv3, **no operator key**: committee resolved tentative **payout** → the
+losing side (client) staked the bond and `dispute`d → the adapter posted a real UMA assertion
+(`assertionId 0x26d55b3f…`) → after liveness anyone `settle`d → UMA's `assertionResolvedCallback` →
+`escrow.resolveDispute` → the outcome was **overturned to refund** (`Rejected`). Txs: dispute
+`0x143a0531…`, settle (UMA → resolveDispute) `0x8e40fdc9…`. (Because the escrow bytecode is identical, this
+proof carries to the live escrow unchanged.)
 
 ### Network note (a UMA property, not an AgentWorks gap)
 
@@ -121,7 +131,7 @@ is the documented drop-in alternative the same seam accepts.
 The committee's votes are CAW `contract_call`s from a dedicated **Evaluator CAW wallet** (one TSS-paired,
 agent-owned wallet hosting the committee addresses `CAW_EVALUATOR_ADDRESS_1..N`), each bound by the
 `evaluator_pact` (castVote-only, **USDC excluded**). This ran **end-to-end, fully hands-off** on Sepolia
-(escrow v4 `0x86B4…2C86`): the client funded **job #4** naming the 3 evaluator addresses, the provider
+(previous v4 `0x86B4…2C86`, identical bytecode to the live escrow): the client funded **job #4** naming the 3 evaluator addresses, the provider
 delivered, and **each committee member `castVote`d through CAW** — Evaluator A
 ([`0x959be72a…`](https://sepolia.etherscan.io/tx/0x959be72af5407771c11dce123fcf45e45e75769fe0365a957d00851e9a6ef6db)),
 Evaluator B
@@ -132,6 +142,10 @@ Evaluator B
 under its Pact is **denied by CAW** (`CONTRACT_NOT_WHITELISTED`, 403) — a committee member can vote but can
 **never** touch escrow. (Committee casts are serialized so the quorum-reaching vote, which triggers
 `_resolve`, is gas-estimated against current chain state.)
+
+On the **live escrow** (`0x8F60…264C`, job #1) the committee ran across **three independent CAW wallets**
+(one per evaluator, not one shared wallet) — `C 0xadf6546d…`, `B 0x8d1e8e07…` reached quorum 2-of-3 →
+`finalize 0xcb57533b…` → payout — the strongest form of the same trustless boundary.
 
 The three demo addresses share one Evaluator wallet / Pact / TSS node — a genuine 3-member committee without
 three daemons, mirroring the provider race. In **production** each committee seat is an **independent

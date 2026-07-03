@@ -59,3 +59,10 @@ docs/DEMO_CHEATCARD.md
 docs/DEPLOY_AGENTS.md
 agents/scripts/live_v4_keys.json
 agents/scripts/live_v4_dispute_keys.json
+
+# Local agent run/debug logs (never commit — noisy, may leak addresses)
+agents/*.log
+
+# TSS signer key-share bundle (base64 keyshares) — NEVER commit; scp to the VPS only. See docs/DEPLOY_SIGNER.md
+tss.env
+agents/tss/tss.env

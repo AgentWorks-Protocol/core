@@ -1,0 +1,34 @@
+#cloud-config
+# Bootstrap the AgentWorks TSS signer host: SSH reachable on 443 (this network blocks outbound 22),
+# Docker installed, firewall locked to the two SSH ports only (signer needs no inbound ports).
+package_update: true
+package_upgrade: false
+packages:
+  - docker.io
+  - docker-compose-v2
+  - ufw
+write_files:
+  - path: /etc/ssh/sshd_config.d/99-port443.conf
+    permissions: '0644'
+    content: |
+      Port 22
+      Port 443
+      PermitRootLogin prohibit-password
+      PasswordAuthentication no
+runcmd:
+  # Ubuntu 24.04 ships socket-activated SSH (ssh.socket) which ignores sshd_config Port.
+  # Disable the socket and run the traditional service so `Port 443` takes effect.
+  - systemctl stop ssh.socket || true
+  - systemctl disable ssh.socket || true
+  - systemctl enable ssh.service
+  - systemctl restart ssh.service
+  # firewall: allow only the two SSH ports inbound; signer makes outbound relay connections only
+  - ufw allow 22/tcp
+  - ufw allow 443/tcp
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw --force enable
+  # docker ready
+  - systemctl enable --now docker
+  - docker --version > /var/log/signer-bootstrap.log 2>&1
+  - echo "BOOTSTRAP_DONE $(date -u +%FT%TZ)" >> /var/log/signer-bootstrap.log

@@ -1,0 +1,38 @@
+# AgentWorks TSS signer — production, always-on (dedicated VPS).
+#
+# Runs the PREBUILT public image (no build toolchain needed on the host) and reconstructs every wallet's
+# key share from the TSS_KEYSHARE_*_B64_* env vars in ./tss.env at first boot. A named volume persists the
+# node state (encrypted secrets db + logs) across container recreation, so the relay identity stays stable.
+#
+# The signer holds the MPC key shares — the cloud agent service and dashboard hold NONE. It needs only
+# OUTBOUND network to the CAW relay (wss://ws.caw.tss.cobo.com/ws); expose NO inbound ports.
+#
+# ── one node per relay identity ──────────────────────────────────────────────────────────────────────
+# Before `docker compose -f docker-compose.prod.yml up -d`, STOP any other signer for these wallets
+# (the local Windows cobo-tss-node OR a local `agentworks-signers` container) — the CAW relay rejects a
+# duplicate node identity and both will thrash. See docs/DEPLOY_SIGNER.md.
+#
+# Usage on the VPS:
+#   scp this file + tss.env to the droplet, then:
+#   docker login ghcr.io            # only if the package is private; it is public, so usually skip
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#   docker compose -f docker-compose.prod.yml logs -f      # watch each profile connect to the relay
+
+services:
+  signer:
+    image: ghcr.io/manuel-dev01/agentworks-tss:latest
+    container_name: agentworks-signer
+    env_file: tss.env          # 68 vars: TSS_KEYSHARE_{CLIENT,PROVIDER,EVALUATORA,EVALUATORB,EVALUATORC}_B64_* — gitignored, chmod 600
+    volumes:
+      - signer-keys:/keys      # persists reconstructed key shares + node db/logs across recreation
+    restart: always
+    # No `ports:` — the signer makes only outbound relay connections. Keep it off the public internet.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  signer-keys:
