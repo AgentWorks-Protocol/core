@@ -4,7 +4,7 @@
 import { createPublicClient, http, formatUnits } from "viem";
 import { sepolia } from "viem/chains";
 import { CFG } from "./config";
-import { escrowAbi, escrowAbiV4, erc20Abi, STATUS_LABELS, STATUS_LABELS_V4, ESCROW_V4_FROM_BLOCK } from "./abi";
+import { escrowAbi, escrowAbiV4, erc20Abi, STATUS_LABELS, STATUS_LABELS_V4, ESCROW_V4_FROM_BLOCK, ESCROW_V4_PREV_FROM_BLOCK } from "./abi";
 
 const client = createPublicClient({
   chain: sepolia,
@@ -121,46 +121,60 @@ export interface SettlementV2 {
   txHash: `0x${string}`;
 }
 
+// The two identical-bytecode v4 deployments the dashboard resolves against: the live escrow first, then the
+// previous one (widened only for the voting window). Job ids can repeat across them, so we prefer the live
+// escrow on a collision (e.g. job #1 = the live committee payout).
+const V4_ESCROWS: { address: `0x${string}`; fromBlock: bigint }[] = [
+  { address: CFG.escrowV4, fromBlock: ESCROW_V4_FROM_BLOCK },
+  { address: CFG.escrowV4Prev, fromBlock: ESCROW_V4_PREV_FROM_BLOCK },
+];
+
 /** Recover a job's settlement (which tx settled it + the outcome) from chain events, for jobs that have no
- *  run artifact. Best-effort: returns null if unreachable, unsupported, or unsettled. */
+ *  run artifact. Scans both v4 escrows (live first). Best-effort: null if unreachable/unsupported/unsettled. */
 export async function settlementV2(jobId: number): Promise<SettlementV2 | null> {
-  const scan = (eventName: "JobCompleted" | "JobRejected" | "RefundClaimed") =>
-    safe(
-      client.getContractEvents({
-        address: CFG.escrowV4,
-        abi: escrowAbiV4,
-        eventName,
-        args: { jobId: BigInt(jobId) },
-        fromBlock: ESCROW_V4_FROM_BLOCK,
-        toBlock: "latest",
-      }),
-    );
-  const [completed, rejected, refunded] = await Promise.all([scan("JobCompleted"), scan("JobRejected"), scan("RefundClaimed")]);
-  const hit = completed?.[0]
-    ? { outcome: "payout" as const, log: completed[0] }
-    : rejected?.[0]
-      ? { outcome: "refund" as const, log: rejected[0] }
-      : refunded?.[0]
-        ? { outcome: "refund" as const, log: refunded[0] }
-        : null;
-  if (!hit?.log?.transactionHash) return null;
-  return { outcome: hit.outcome, txHash: hit.log.transactionHash };
+  for (const esc of V4_ESCROWS) {
+    const scan = (eventName: "JobCompleted" | "JobRejected" | "RefundClaimed") =>
+      safe(
+        client.getContractEvents({
+          address: esc.address,
+          abi: escrowAbiV4,
+          eventName,
+          args: { jobId: BigInt(jobId) },
+          fromBlock: esc.fromBlock,
+          toBlock: "latest",
+        }),
+      );
+    const [completed, rejected, refunded] = await Promise.all([scan("JobCompleted"), scan("JobRejected"), scan("RefundClaimed")]);
+    const hit = completed?.[0]
+      ? { outcome: "payout" as const, log: completed[0] }
+      : rejected?.[0]
+        ? { outcome: "refund" as const, log: rejected[0] }
+        : refunded?.[0]
+          ? { outcome: "refund" as const, log: refunded[0] }
+          : null;
+    if (hit?.log?.transactionHash) return { outcome: hit.outcome, txHash: hit.log.transactionHash };
+  }
+  return null;
 }
 
-/** Live getJob() on the marketplace (v4) escrow, or null if unreachable / not found. */
+/** Live getJob() on the marketplace (v4) escrow, or null if unreachable / not found. Tries the live escrow
+ *  first, then the previous v4 deployment (so historical jobs still resolve). */
 export async function liveJobV2(jobId: number): Promise<LiveJobV2 | null> {
-  const j = await safe(
-    client.readContract({ address: CFG.escrowV4, abi: escrowAbiV4, functionName: "getJob", args: [BigInt(jobId)] }),
-  );
-  if (!j) return null;
-  const job = j as { client: string; provider: string; amount: bigint; irysId: string; status: number };
-  return {
-    amountUsdc: Number(formatUnits(job.amount, 6)),
-    statusLabel: STATUS_LABELS_V4[job.status] ?? "Unknown",
-    irysId: job.irysId,
-    client: job.client,
-    provider: job.provider,
-  };
+  for (const esc of V4_ESCROWS) {
+    const j = await safe(
+      client.readContract({ address: esc.address, abi: escrowAbiV4, functionName: "getJob", args: [BigInt(jobId)] }),
+    );
+    if (!j) continue; // getJob reverts for unknown ids → try the other escrow
+    const job = j as { client: string; provider: string; amount: bigint; irysId: string; status: number };
+    return {
+      amountUsdc: Number(formatUnits(job.amount, 6)),
+      statusLabel: STATUS_LABELS_V4[job.status] ?? "Unknown",
+      irysId: job.irysId,
+      client: job.client,
+      provider: job.provider,
+    };
+  }
+  return null;
 }
 
 /** Committee + vote state for a v4 job (for the committee panel). Null if unreachable. */

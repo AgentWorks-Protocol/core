@@ -74,7 +74,9 @@ async function get<T>(path: string, timeoutMs = 8000): Promise<T | null> {
   try {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), timeoutMs);
-    const r = await fetch(`${BASE}${path}`, { signal: ctl.signal, cache: "no-store" });
+    // Go through the same-origin proxy (/api/agent/*) so an HTTPS dashboard can read a plain-HTTP agent
+    // service without mixed-content blocking. These readers run in client components.
+    const r = await fetch(`/api/agent${path}`, { signal: ctl.signal, cache: "no-store" });
     clearTimeout(t);
     if (!r.ok) return null;
     return (await r.json()) as T;

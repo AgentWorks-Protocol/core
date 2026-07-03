@@ -52,8 +52,9 @@ The whole lifecycle runs **autonomously from a deployed service** - post a job a
   any MCP-capable agent. Deliverables stored on Irys (`irys/`); state persists on a mounted volume (`AGENT_DATA_DIR`).
 - **Dashboard** (`web/`, Next.js 15 + viem): landing, **New job** (triggers the agents + watches them settle
   live), **Marketplace** (read-only proof history), **Proofs** (the Pact policies + criticality beats), **Flow**.
-- **Deployment:** Vercel (web) + Railway (agent service) + Railway (TSS signer). The signer holds the MPC key
-  share; the dashboard and agent service hold no keys. See [ARCHITECTURE.md](ARCHITECTURE.md) and [DEPLOY.md](DEPLOY.md).
+- **Deployment:** Vercel (web) + Railway (agent service) + **DigitalOcean droplet (TSS signer)**. The signer
+  holds the MPC key shares; the dashboard and agent service hold no keys. See [ARCHITECTURE.md](ARCHITECTURE.md),
+  [DEPLOY.md](DEPLOY.md), and the signer runbook [DEPLOY_SIGNER.md](DEPLOY_SIGNER.md).
 
 **How CAW is the load-bearing layer:** every fund operation is a CAW `contract_call` through the agent's own
 wallet; `submit_pact`/`wait_pact_active` bind authority; `revoke_pact` is the freeze; `approve_pending_operation`
@@ -81,7 +82,7 @@ is the human review. The literal policies ship in [`docs/pacts/`](pacts/). Detai
   **2-provider sealed accept-race** (`commitAccept → revealAccept`), delivers to Irys, and settles. Genuine
   LLM decisions at fund/accept/evaluate.
 - ✅ **Fully hands-off:** a `/trigger` settles with **no process on the user's machine** - co-signed by the
-  Railway TSS node (job #10 below).
+  hosted TSS signer (a dedicated DigitalOcean droplet; see [DEPLOY_SIGNER.md](DEPLOY_SIGNER.md)).
 - ✅ **Open marketplace API (full external flow):** external agents participate without surrendering keys -
   the platform returns calldata they sign with their own CAW wallet. A client opens + funds a job
   (`GET /marketplace/post-calldata` → `POST /marketplace/jobs` to publish the task); a provider discovers
@@ -171,7 +172,7 @@ SEALED RACE (escrow v3, MEV-hardened) - job #1: hands-off run, both providers co
   content verified   keccak256(Irys) == on-chain deliverableHash  ✓   (Provider A's revealAccept reverted: lost the sealed race)
 
 PAYOUT - job #10 (escrow v2), fully hands-off: POST /trigger → the deployed service ran it autonomously and the
-         Railway TSS container co-signed every step (zero local processes); 2-provider race, Provider A won:
+         hosted TSS signer co-signed every step (zero local processes); 2-provider race, Provider A won:
   createJob   0x3a12b58c081feaf36d3d599fb1e7e07beadee0cca28d724342073d568bb98070
   approve     0x414baec1686e96d397488190adbc3d55d93ac4488a5b8c40b3da45eee1df8192
   fund        0xdc4d6092f1e29d5541dd3da8110242040a688c246deccd74b8e9cfa1aa512043
@@ -218,8 +219,8 @@ MCP - job #14, driven entirely through the MCP server's tools (client + provider
 | README + documentation | ✅ | [README.md](../README.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RISK_BOUNDARIES.md](RISK_BOUNDARIES.md), [DEPLOY.md](DEPLOY.md), this file |
 | Demo video (3–5 min) | ✅ | https://www.youtube.com/watch?v=-oFrab494Fg |
 | Project demo link | ✅ | dashboard → https://agent-works-web.vercel.app/ ; agent service `https://insightful-wisdom-production-5c62.up.railway.app` |
-| Key code / config notes for CAW | ✅ | README "How Cobo Agentic Wallet is used"; [`agents/caw/client.py`](../agents/caw/client.py), [`agents/pacts.py`](../agents/pacts.py), [`docs/pacts/`](pacts/) |
-| Testnet address | ✅ | Escrow v2 `0xD6cB…3726b9`, MockUSDC `0x4C4D…d910` |
+| Key code / config notes for CAW | ✅ | [`agents/caw/client.py`](../agents/caw/client.py), [`agents/pacts.py`](../agents/pacts.py), [`docs/pacts/`](pacts/), [RISK_BOUNDARIES.md](RISK_BOUNDARIES.md) |
+| Testnet address | ✅ | Escrow **v4** (live) `0x8F60…264C`, UMA arbiter `0x8BDB…DE4B`, MockUSDC `0x4C4D…d910` |
 | Transaction hash | ✅ | the payout + refund tx sets above |
 | Agent wallet address | ✅ | Client `0x6dfb…1ddd`, Provider A `0xef93…e643`, Provider B `0x7ea0…c69e` |
 | Flow / operation records | ✅ | on-chain evidence above |

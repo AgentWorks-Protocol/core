@@ -14,10 +14,15 @@ export const CFG = {
   // v4 open-marketplace escrow: committee (M-of-N) consensus evaluation + staked disputes escalating to a
   // decoupled, decentralized arbiter (UMA OOv3). This is the LIVE marketplace the dashboard reads.
   escrowV4: env("NEXT_PUBLIC_ESCROW_V4_ADDRESS", "0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C") as `0x${string}`,
+  // Previous v4 deployment (identical bytecode, superseded only to widen the voting window). The dashboard
+  // also reads it so historical jobs that settled there still resolve their status + settling tx.
+  escrowV4Prev: env("NEXT_PUBLIC_ESCROW_V4_PREV_ADDRESS", "0x86B422CC8F75B7c5521a2552F2C34da8cb342C86") as `0x${string}`,
   umaArbiter: env("NEXT_PUBLIC_UMA_ARBITER", "0x8BDB79EB6cDC3E54E373C0E5096CffD737a5DE4B") as `0x${string}`,
-  // Deployed autonomous agent service (Railway). The dashboard is a live window onto these agents:
-  // "Post job" fires POST /trigger and the board watches them reason + settle. Empty → live-trigger UI hidden.
-  agentApi: env("NEXT_PUBLIC_AGENT_API", "https://insightful-wisdom-production-5c62.up.railway.app").replace(/\/$/, ""),
+  // Deployed autonomous agent service (DigitalOcean droplet, co-located with the TSS signer). The dashboard
+  // is a live window onto these agents: "Post job" fires POST /trigger and the board watches them reason +
+  // settle. Reads proxy through /api/agent/* (same-origin) so an HTTPS page can reach the HTTP service.
+  // Empty → live-trigger UI hidden. Override per-env with NEXT_PUBLIC_AGENT_API.
+  agentApi: env("NEXT_PUBLIC_AGENT_API", "http://139.59.135.74:8000").replace(/\/$/, ""),
   usdc: env("NEXT_PUBLIC_USDC_ADDRESS", "0x4C4D1223BcC47E380CF4C37652EaDFe10A9Fd910") as `0x${string}`,
   clientCaw: env("NEXT_PUBLIC_CLIENT_CAW", "0x6dfbd0ac9feb5bb9a9ffeaf54df203c1633c1ddd") as `0x${string}`,
   providerCaw: env("NEXT_PUBLIC_PROVIDER_CAW", "0xef9349b3273b1a54faaf701231f499fe0282e643") as `0x${string}`,
