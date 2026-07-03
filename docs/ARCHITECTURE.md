@@ -22,9 +22,9 @@ Each agent is onboarded into its **own** CAW wallet and bound to a **scoped Pact
 pact-scoped API key carries the authority). The Pact is an allowlist enforced **server-side** by CAW - the
 agent cannot exceed it regardless of what its LLM decides:
 
-- **Client Pact** → `contract_call` allowlist = escrow v2 + MockUSDC only; per-24h tx cap; budget cap
+- **Client Pact** → `contract_call` allowlist = escrow v4 + MockUSDC only; per-24h tx cap; budget cap
   (`deny_if.amount_gt`); a review threshold (`review_if`).
-- **Provider Pact** → `contract_call` allowlist = escrow v2 only, **USDC excluded** → a provider can accept
+- **Provider Pact** → `contract_call` allowlist = escrow v4 only, **USDC excluded** → a provider can accept
   and deliver but can **never** move escrowed funds. Only the contract settles.
 - **Freeze** = `revoke_pact` (CAW has no native freeze API) → the pact-scoped key stops working instantly.
 
@@ -46,7 +46,7 @@ The full literal policies + the demonstrated denial/freeze/review are in **[RISK
         │ reads chain (viem)       ▼                          ┌──────────────────────────┐
         └────────────▶  ┌──────────────────────────┐         │  TSS signer (always-on)  │
                         │  Ethereum Sepolia        │◀────────│  holds the MPC key share │
-                        │  Escrow v2 + MockUSDC    │ broadcast│  (host you control / VM) │
+                        │  Escrow v4 + MockUSDC    │ broadcast│  (DigitalOcean droplet)  │
                         └──────────────────────────┘         └──────────────────────────┘
                                    ▲
                                    │  Provider stores deliverable, anchors keccak256 + Irys id

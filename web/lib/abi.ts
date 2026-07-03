@@ -83,6 +83,9 @@ export const STATUS_LABELS_V4 = ["None", "Open", "Funded", "Accepted", "Submitte
 /** Block the v4 (committee + disputes) escrow was deployed at — lower bound for v4 event log scans. */
 export const ESCROW_V4_FROM_BLOCK = 11189574n;
 
+/** Deploy block of the previous v4 escrow (identical bytecode) — lower bound for its event scans. */
+export const ESCROW_V4_PREV_FROM_BLOCK = 11124671n;
+
 /** v4 escrow ABI: Job tuple drops `evaluator`, adds committeeSize+quorum; plus committee/vote reads + events. */
 export const escrowAbiV4 = [
   {

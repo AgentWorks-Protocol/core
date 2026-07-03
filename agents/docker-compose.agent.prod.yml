@@ -1,0 +1,33 @@
+# AgentWorks agent service — production, always-on (co-located on the signer droplet, ISOLATED container).
+#
+# The FastAPI orchestrator (agents/server.py). It holds NO key material — it talks to the CAW cloud API over
+# HTTPS and on-chain signing happens via the TSS signer (the `agentworks-signer` container on this same box,
+# connected to the CAW relay). This container does NOT mount the signer's key volume, so a compromise of the
+# web service cannot read the MPC key shares.
+#
+# Config comes from ./agent.env (secrets — gitignored, chmod 600). Deliverable+board+run artifacts persist on
+# the `agent-data` volume (AGENT_DATA_DIR=/data). /trigger is bearer-token gated (AGENT_TRIGGER_TOKEN).
+#
+# Usage on the droplet (image loaded via `docker load`, so no registry pull):
+#   docker compose -f docker-compose.agent.prod.yml up -d
+#   docker compose -f docker-compose.agent.prod.yml logs -f
+#   curl -s localhost:8000/health
+
+services:
+  agent:
+    image: agentworks-agent:latest
+    container_name: agentworks-agent
+    env_file: agent.env
+    ports:
+      - "8000:8000"        # public HTTP; ufw must allow 8000. The Vercel dashboard posts here server-side.
+    volumes:
+      - agent-data:/data   # persists /runs + board across restarts; NOT the signer key volume
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  agent-data:

@@ -46,9 +46,12 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
   const accepts = Object.entries(run?.accept_decisions ?? {});
   const raced = accepts.length > 1;
   const steps = STEP_DEFS.filter((s) => run?.txs?.[s.key]);
-  // For jobs with no artifact (e.g. MCP-settled), recover the settling tx + outcome from chain events.
-  const chainSettle = !run?.txs?.complete && !run?.txs?.reject ? await settlementV2(jobId) : null;
-  const settleTx = run?.txs?.complete || run?.txs?.reject || chainSettle?.txHash || "";
+  // The settling tx from the artifact: v4 finalize/claimRefund, or legacy v2/v3 complete/reject.
+  const artifactSettleTx = run?.txs?.complete || run?.txs?.reject || run?.txs?.finalize || run?.txs?.claimRefund;
+  // For jobs whose artifact has no settlement yet (or no artifact at all, e.g. MCP-settled), recover the
+  // settling tx + outcome from chain events across both v4 escrows.
+  const chainSettle = !artifactSettleTx ? await settlementV2(jobId) : null;
+  const settleTx = artifactSettleTx || chainSettle?.txHash || "";
   // Outcome: prefer the artifact's branch, else derive from the on-chain status (Completed→payout, Rejected/Refunded→refund).
   const settled = statusLabel === "Completed" ? "payout" : statusLabel === "Rejected" || statusLabel === "Refunded" ? "refund" : null;
   const outcome = run?.branch ?? chainSettle?.outcome ?? settled;
@@ -72,13 +75,13 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
           <div className="agent">
             <div className="role">Client</div>
             <div className="addr"><span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--settle)" }} /><a href={addrUrl(CFG.clientCaw)} target="_blank" rel="noreferrer">{shortHex(CFG.clientCaw)}</a></div>
-            <div className="pact">Pact · escrow v2 + USDC allowlist</div>
+            <div className="pact">Pact · escrow v4 + USDC allowlist</div>
           </div>
           <div className="seam" />
           <div className="agent">
             <div className="role">Provider {run?.winner ? `· ${run.winner}` : ""}</div>
             <div className="addr"><span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--work)" }} /><a href={addrUrl(provider || CFG.providerCaw)} target="_blank" rel="noreferrer">{shortHex(provider || CFG.providerCaw)}</a></div>
-            <div className="pact">Pact · escrow v2 allowlist (no USDC)</div>
+            <div className="pact">Pact · escrow v4 allowlist (no USDC)</div>
           </div>
         </div>
 

@@ -71,7 +71,7 @@
     "accept": true,
     "reason": "committee 2-0 on-chain (quorum 2 of 3)"
   },
-  "branch": "finalize",
+  "branch": "payout",
   "status": "completed",
   "task": "Write a clear 2-3 sentence explanation, for a non-expert, of how an on-chain escrow lets two agents who don't trust each other transact safely.",
   "criteria": "Plain language, 2-3 sentences, mentions the neutral escrow holding funds.",

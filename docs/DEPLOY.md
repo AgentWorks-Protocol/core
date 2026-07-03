@@ -16,8 +16,8 @@ only the TSS signer holds the MPC key share - that separation is Cobo's security
         │ reads chain (viem)      ▼                                     ▼
         └───────────▶  ┌──────────────────────────┐         ┌──────────────────────────┐
                        │  Ethereum Sepolia        │◀────────│  TSS signer (always-on)  │
-                       │  Escrow v2 + MockUSDC    │ broadcast│  holds the key share     │
-                       └──────────────────────────┘         │  (Railway: agentworks-tss)│
+                       │  Escrow v4 + MockUSDC    │ broadcast│  holds the key share     │
+                       └──────────────────────────┘         │  (DigitalOcean droplet)  │
                                                              └──────────────────────────┘
 ```
 
@@ -25,7 +25,7 @@ only the TSS signer holds the MPC key share - that separation is Cobo's security
 |---|---|---|
 | **Dashboard** (`/web`, Next.js 15) | demo surface - live reads + triggers the agents | **Vercel** |
 | **Agent service** (`agents/server.py`) | autonomous orchestration + LLM reasoning; **no keys** | **Railway** |
-| **TSS signer** (`cobo-tss-node`) | CAW MPC node that co-signs; **holds the key share** | **Railway** (`agentworks-tss`) |
+| **TSS signer** (`cobo-tss-node`) | CAW MPC node that co-signs; **holds the key shares** | **DigitalOcean droplet** (`agentworks-signer`) |
 
 ---
 
@@ -116,36 +116,24 @@ their own CAW wallet**. Full external client/provider walkthrough: [ARCHITECTURE
   `AGENT_REGISTER_TOKEN=<random>` (gates `POST /marketplace/register` - omit for open self-service onboarding),
   `AGENT_CORS_ORIGINS=https://<your-vercel-domain>` (locks CORS to the dashboard).
 
-## 3. TSS signer → Railway (always-on)
+## 3. TSS signer → DigitalOcean droplet (always-on)
 
-The signer is the only piece that holds your key share. It runs as its own Railway service
-(`agentworks-tss`, image `agents/tss/Dockerfile.tss`) so the whole system is hands-off - nothing on your
-machine. **One node per wallet identity may be on the CAW relay at a time**, so stop any local
-`cobo-tss-node` before the Railway signer runs (and vice-versa).
+The signer is the only piece that holds your key shares. It runs as an always-on container on a dedicated
+**DigitalOcean droplet** (`agentworks-signer`) — the prebuilt public image
+`ghcr.io/manuel-dev01/agentworks-tss:latest` via `agents/tss/docker-compose.prod.yml`, `restart: always`,
+plus a self-healing cron uptime check. The entrypoint reconstructs each wallet's key share from the
+`TSS_KEYSHARE_*_B64_*` env vars in `tss.env` and starts **one signer per profile** (client / provider /
+evaluator A/B/C), each with its own retry + exponential-backoff loop. **One node per wallet identity may be
+on the CAW relay at a time**, so stop any local `cobo-tss-node` (or local container) before the droplet
+signer runs.
 
-**Setup**
-1. **Volume at `/keys`** (the image hardcodes `PROFILES_DIR=/keys`), one subdir per wallet holding that
-   profile's `tss-node` contents (`db/secrets.db` + `.password` + `configs/`):
-   ```
-   /keys/client/    ← %USERPROFILE%\.cobo-agentic-wallet\profiles\profile_caw_agent_4bc15e6348db0514\tss-node\
-   /keys/provider/  ← …\profile_caw_agent_e6318ac84f123085\tss-node\
-   ```
-   Populate a fresh Railway volume via `railway ssh` + base64-over-stdin
-   (`bash agents/tss/make_keyshare_env.sh ./keys` emits the blobs; `echo '<blob>' | base64 -d | tar -xz -C /keys/client`).
-   **Key-share portability is verified:** the Linux node loads the Windows-generated shares and connects with
-   the same node ids - no re-onboard, no re-fund.
-2. **Env:** `TSS_DEBUG_SLEEP=0` (run the signers), plus the retry tuning the entrypoint reads -
-   `TSS_MAX_RETRIES=5`, `TSS_INITIAL_BACKOFF=60`, `TSS_MAX_BACKOFF=300`, `TSS_HEALTHY_SECS=300`.
-3. The entrypoint (`agents/tss/entrypoint.sh`) starts **one signer per profile in parallel**, each with its own
-   retry + exponential-backoff loop, and keeps the container alive so logs stay inspectable. Healthy state:
-   `started 2 signer(s)` then two `[Websocket.Client] connected.`, and `Signing task … completed` when a run signs.
+Healthy state: `reconstructing key share …` per profile → `starting signer for profile: …` → five
+`[Websocket.Client] connected.` → `Signing task … completed` when a run signs.
 
-**VM alternative (Option A).** Any small Linux VM with Docker runs the identical setup:
-```bash
-mkdir -p keys/client keys/provider     # copy each profile's tss-node contents into keys/<name>/
-docker compose --profile tss up -d     # one signer per keys/<name>/ ; mounts ./keys:/keys
-docker compose logs -f agentworks-tss  # look for: started 2 signer(s); [Websocket.Client] connected.
-```
+**Full runbook** — provisioning (`doctl` + `agents/tss/cloud-init.yml`), hardening (SSH-key-only on **port
+443** because outbound 22 is blocked on some networks, `ufw` inbound-SSH-only), the cutover from local, the
+cron health check, and end-to-end signature verification (`agents/scripts/verify_hosted_sign.py`) — is in
+**[docs/DEPLOY_SIGNER.md](DEPLOY_SIGNER.md)**.
 
 ## 4. Gas + USDC
 
@@ -163,8 +151,9 @@ curl -X POST https://<agent-host>/trigger \
 # poll /runs, then open the resulting tx hashes on https://sepolia.etherscan.io
 ```
 The system is fully hands-off once a `POST /trigger` settles a job with **no local signer running** - the
-agent service signs through the Railway TSS node. (Verified: job #10 → Completed, co-signed by the Railway
-container; see the README evidence table.)
+agent service signs through the hosted TSS signer (the DigitalOcean droplet; see
+[docs/DEPLOY_SIGNER.md](DEPLOY_SIGNER.md)). Verified end-to-end: a live committee→finalize payout co-signed
+by the hosted signer (job #1 in the README evidence; signature session in the droplet's container logs).
 
 ## Connecting an external agent (MCP)
 External agents don't deploy anything here - they **run the MCP server locally** with their own CAW wallet to
