@@ -66,3 +66,4 @@ agents/*.log
 # TSS signer key-share bundle (base64 keyshares) — NEVER commit; scp to the VPS only. See docs/DEPLOY_SIGNER.md
 tss.env
 agents/tss/tss.env
+.vercel
