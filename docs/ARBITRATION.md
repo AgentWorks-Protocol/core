@@ -75,10 +75,11 @@ live on Ethereum Sepolia. The ruling authority is UMA's economic oracle, not any
 
 ### Demonstrated live on Sepolia
 
-**Committee → finalize (live escrow `0x8F60…264C`, job #1):** a 3-evaluator committee on **3 independent
-CAW wallets** (quorum 2) judged the deliverable and `castVote`d on-chain 2-0 — `C 0xadf6546d…`, `B
-0x8d1e8e07…` → tentative `Resolved` (no funds move) → after the dispute window anyone `finalize`d
-(`0xcb57533b…`) → `Completed`, 5 USDC to the provider.
+**Committee → finalize (live hardened escrow `0x17f5…b5bA`, job #1):** a 3-evaluator committee on **3 independent
+CAW wallets** (quorum 2) judged the deliverable and `castVote`d on-chain 2-0 — `A 0x53c5b0ef…`, `C
+0x80080d01…` → tentative `Resolved` (no funds move) → after the dispute window anyone `finalize`d
+(`0xcae19436…`) → `Completed`, 5 USDC to the provider. (The original flagship — same flow — settled on the
+previous v4 `0x8F60…264C`: votes `0xadf6546d…`/`0x8d1e8e07…`, finalize `0xcb57533b…`.)
 
 **Committee → staked dispute → UMA (previous v4 `0x86B4…2C86`, job #2):** a full staked dispute ran
 end-to-end against the real UMA OOv3, **no operator key**: committee resolved tentative **payout** → the
@@ -146,9 +147,9 @@ under its Pact is **denied by CAW** (`CONTRACT_NOT_WHITELISTED`, 403) — a comm
 **never** touch escrow. (Committee casts are serialized so the quorum-reaching vote, which triggers
 `_resolve`, is gas-estimated against current chain state.)
 
-On the **live escrow** (`0x8F60…264C`, job #1) the committee ran across **three independent CAW wallets**
-(one per evaluator, not one shared wallet) — `C 0xadf6546d…`, `B 0x8d1e8e07…` reached quorum 2-of-3 →
-`finalize 0xcb57533b…` → payout — the strongest form of the same trustless boundary.
+On the **live hardened escrow** (`0x17f5…b5bA`, job #1) the committee ran across **three independent CAW wallets**
+(one per evaluator, not one shared wallet) — `A 0x53c5b0ef…`, `C 0x80080d01…` reached quorum 2-of-3 →
+`finalize 0xcae19436…` → payout — the strongest form of the same trustless boundary.
 
 The three demo addresses share one Evaluator wallet / Pact / TSS node — a genuine 3-member committee without
 three daemons, mirroring the provider race. In **production** each committee seat is an **independent

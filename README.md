@@ -49,12 +49,12 @@ Full design → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Proof it works
 
-Flagship — a committee → finalize payout on **3 independent CAW wallets** (job #1): the committee judges and
-votes 2-0 on-chain
-([`vote C`](https://sepolia.etherscan.io/tx/0xadf6546dcf0c3fec4ffc895d6d6ceff37c402b339a6d6008d9295ac8c2979db0) /
-[`vote B`](https://sepolia.etherscan.io/tx/0x8d1e8e07f077009412c3179adf63e9014f27127ed5a30fe262c708a2e2f37fa9))
+Flagship — a committee → finalize payout on **3 independent CAW wallets**, on the **live hardened escrow**
+(`0x17f5…b5bA`, job #1): the committee judges and votes 2-0 on-chain
+([`vote A`](https://sepolia.etherscan.io/tx/0x53c5b0ef5f851875ce0424a6753425c582fcb735a89c1672009b1bc6a2d56967) /
+[`vote C`](https://sepolia.etherscan.io/tx/0x80080d0173e9fc6a68116dad381ba0dd28b4ccae361d3d1d6d31f7a772765263))
 → tentative `Resolved` (no funds move) →
-[`finalize`](https://sepolia.etherscan.io/tx/0xcb57533b7db81973e926d9ad188a2cb098b43bb1ae7b9ff15d9089d8b0218762)
+[`finalize`](https://sepolia.etherscan.io/tx/0xcae19436fe62f09ccf2ef894b44d4b5cc809b242c719fc4c1c5b55a17cbad79e)
 → 5 USDC to the provider. All paths — dispute → UMA, sealed race, MCP-driven, refund, and the CAW
 denial/freeze/review beats → [docs/SUBMISSION.md](docs/SUBMISSION.md).
 
