@@ -24,6 +24,18 @@ contract MockArbiter is IArbiter {
     }
 }
 
+/// @dev An arbiter that exposes an optimistic liveness (like the UMA adapter), used to exercise the
+///      escrow's constructor coupling of the resolve window to the arbiter liveness (audit: resolveTimeout).
+contract MockArbiterWithLiveness is IArbiter {
+    uint64 public liveness;
+
+    constructor(uint64 liveness_) {
+        liveness = liveness_;
+    }
+
+    function openDispute(uint256, bool, address) external override {}
+}
+
 contract AgentWorksEscrowV4Test is Test {
     AgentWorksEscrowV4 internal escrow;
     MockUSDC internal usdc;
@@ -154,6 +166,27 @@ contract AgentWorksEscrowV4Test is Test {
     function test_constructor_revertsZeroResolveWindow() public {
         vm.expectRevert(AgentWorksEscrowV4.InvalidWindow.selector);
         new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, 0, address(arbiter));
+    }
+
+    // ── resolve-window ↔ arbiter-liveness coupling (audit: resolveTimeout preemption) ──
+
+    // liveness 7200s needs ≥ 600 blocks (×12s/block); 599 must revert so the timeout can't preempt UMA.
+    function test_constructor_revertsResolveWindowShorterThanLiveness() public {
+        MockArbiterWithLiveness a = new MockArbiterWithLiveness(7200);
+        vm.expectRevert(AgentWorksEscrowV4.ResolveWindowTooShort.selector);
+        new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, 599, address(a));
+    }
+
+    function test_constructor_okWhenResolveWindowCoversLiveness() public {
+        MockArbiterWithLiveness a = new MockArbiterWithLiveness(7200);
+        AgentWorksEscrowV4 e = new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, 600, address(a));
+        assertEq(e.disputeResolveWindowBlocks(), 600); // 600×12 == 7200, exactly covers liveness
+    }
+
+    // An arbiter without a liveness() (synchronous ruling / the default MockArbiter) skips the coupling —
+    // the setUp escrow deployed with RSWIN=50 < 600 and did NOT revert.
+    function test_constructor_skipsCouplingWhenArbiterHasNoLiveness() public view {
+        assertEq(escrow.disputeResolveWindowBlocks(), RSWIN);
     }
 
     // ── createJob (committee) ──
@@ -645,14 +678,49 @@ contract AgentWorksEscrowV4Test is Test {
 
     // ── claimRefund (backstop + new-status exclusions) ──
 
-    function test_claimRefund_afterDeadline_whenSubmittedUnvoted() public {
-        uint256 jobId = _createFundAcceptSubmit();
+    function test_claimRefund_afterDeadline_whenFundedUnaccepted() public {
+        uint256 jobId = _createAndFund(); // Funded, no provider ever revealed
         uint256 clientBefore = usdc.balanceOf(client);
         vm.warp(deadline + 1);
         vm.prank(client);
         escrow.claimRefund(jobId);
         assertEq(usdc.balanceOf(client), clientBefore + AMOUNT);
         assertEq(uint8(escrow.getJob(jobId).status), uint8(AgentWorksEscrowV4.Status.Refunded));
+    }
+
+    function test_claimRefund_afterDeadline_whenAcceptedNoWork() public {
+        uint256 jobId = _createFundCommitReveal(); // Accepted, provider never submitted
+        uint256 clientBefore = usdc.balanceOf(client);
+        vm.warp(deadline + 1);
+        vm.prank(client);
+        escrow.claimRefund(jobId);
+        assertEq(usdc.balanceOf(client), clientBefore + AMOUNT);
+        assertEq(uint8(escrow.getJob(jobId).status), uint8(AgentWorksEscrowV4.Status.Refunded));
+    }
+
+    // SECURITY (audit #4): once work is Submitted the client can NOT unilaterally refund and keep the
+    // delivered work — even past a self-chosen short deadline. The committee owns the outcome.
+    function test_claimRefund_revertsWhenSubmitted_cannotStealWork() public {
+        uint256 jobId = _createFundAcceptSubmit();
+        vm.warp(deadline + 1); // deadline expired mid-voting
+        vm.prank(client);
+        vm.expectRevert(abi.encodeWithSelector(AgentWorksEscrowV4.BadStatus.selector, AgentWorksEscrowV4.Status.Submitted, AgentWorksEscrowV4.Status.Funded));
+        escrow.claimRefund(jobId);
+    }
+
+    // ...and a stalled Submitted job is still flushable permissionlessly (forceResolve → refund), so
+    // removing Submitted from claimRefund never strands funds.
+    function test_submittedStall_flushedByForceResolve_notClaimRefund() public {
+        uint256 jobId = _createFundAcceptSubmit();
+        vm.roll(block.number + VWIN + 1); // voting window elapsed with no quorum
+        uint256 clientBefore = usdc.balanceOf(client);
+        vm.prank(stranger); // permissionless
+        escrow.forceResolve(jobId); // → Resolved (tentative refund)
+        (, , , , uint64 resolvedBlock) = escrow.getVote(jobId);
+        vm.roll(uint256(resolvedBlock) + DWIN + 1);
+        escrow.finalize(jobId); // dispute window elapsed → refund executes
+        assertEq(usdc.balanceOf(client), clientBefore + AMOUNT);
+        assertEq(uint8(escrow.getJob(jobId).status), uint8(AgentWorksEscrowV4.Status.Rejected));
     }
 
     function test_claimRefund_revertsWhenResolved() public {

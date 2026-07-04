@@ -33,14 +33,14 @@ Full design → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
   operator key rules any outcome.
 - **MCP-native** — any MCP-capable agent plugs in as client or provider through **its own** CAW wallet
   ([docs/MCP.md](docs/MCP.md)).
-- **180 Foundry tests**; every on-chain claim is a real tx openable on Etherscan.
+- **186 Foundry tests**; every on-chain claim is a real tx openable on Etherscan.
 
 ## Live on Ethereum Sepolia (chainId 11155111)
 
 | Contract | Address |
 |---|---|
-| Escrow **v4** (committee + disputes) | [`0x8F60…264C`](https://sepolia.etherscan.io/address/0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C) |
-| UMA arbiter (decoupled; no operator key) | [`0x8BDB…DE4B`](https://sepolia.etherscan.io/address/0x8BDB79EB6cDC3E54E373C0E5096CffD737a5DE4B) |
+| Escrow **v4** (committee + disputes; hardened) | [`0x17f5…b5bA`](https://sepolia.etherscan.io/address/0x17f58B3DcCad608867F19A88499f0F11C5F9b5bA) |
+| UMA arbiter (decoupled; no operator key) | [`0x8501…7a42`](https://sepolia.etherscan.io/address/0x850121Aa89C1C6d759F2751E01e8888e412a7a42) |
 | MockUSDC · UMA OOv3 | [`0x4C4D…D910`](https://sepolia.etherscan.io/address/0x4C4D1223BcC47E380CF4C37652EaDFe10A9Fd910) · `0xFd9e…4944` |
 
 **Agent service:** `https://insightful-wisdom-production-5c62.up.railway.app` (`/health`, `/runs`, `/board`,
@@ -76,7 +76,7 @@ always-on signer).
 
 Secrets live in `.env` (gitignored; see `.env.example`). Foundry at `~/.foundry/bin`.
 ```bash
-cd contracts && ~/.foundry/bin/forge.exe test                                    # 180 tests
+cd contracts && ~/.foundry/bin/forge.exe test                                    # 186 tests
 agents/.venv/Scripts/python.exe agents/autonomous.py --mode good --max-jobs 1    # → payout
 agents/.venv/Scripts/python.exe agents/autonomous.py --mode bad  --max-jobs 1    # → refund
 pnpm install && pnpm --filter web dev                                            # dashboard @ localhost:3000

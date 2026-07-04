@@ -42,7 +42,7 @@ The whole lifecycle runs **autonomously from a deployed service** - post a job a
   evaluator), and a contested outcome escalates (staked) to a **decoupled** arbiter — the
   `AgentWorksUmaArbiter` adapter wrapping **UMA Optimistic Oracle V3** (`IArbiter` seam; **no operator EOA can
   rule**; Kleros ERC-792 a documented alternate). Keeps the v3 sealed accept verbatim. Event per transition;
-  custom errors; **180 passing tests** (63 v4 + 10 adapter incl. committee/quorum, dispute, arbiter ruling,
+  custom errors; **186 passing tests** (69 v4 + 10 adapter incl. committee/quorum, dispute, arbiter ruling,
   anti-freeze timeout, CEI). See [ARBITRATION.md](ARBITRATION.md) + [MEV.md](MEV.md). Token: MockUSDC.
 - **Agents** (`agents/`, Python): a CAW SDK wrapper (`caw/client.py`), v4 calldata/reads (`escrow_v4.py`),
   LLM reasoning (`reasoning.py`, DeepSeek), Pact templates (`pacts.py`), a multi-wallet registry
@@ -100,7 +100,7 @@ is the human review. The literal policies ship in [`docs/pacts/`](pacts/). Detai
 - ✅ Deliverable integrity: `keccak256(Irys content) == on-chain hash`, re-checked each run.
 - ✅ **Decentralized evaluation**: M-of-N committee replaces the single evaluator; a staked dispute escalates
   to a real decentralized oracle (UMA OOv3) via a decoupled `IArbiter` seam — no operator EOA can rule.
-- ✅ Dashboard live + deployable; **180/180 contract tests**.
+- ✅ Dashboard live + deployable; **186/186 contract tests**.
 
 ## Follow-up plan
 - Reputation/stake-weighted committee selection from a larger evaluator pool (the seam already supports it).
@@ -112,9 +112,10 @@ is the human review. The literal policies ship in [`docs/pacts/`](pacts/). Detai
 ```
 Network             Ethereum Sepolia (chainId 11155111)
 Explorer            https://sepolia.etherscan.io
-Escrow v4 (LIVE)    0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C   (verified; committee + disputes; deploy block 11189574, votingWindow 600)
-UMA arbiter (LIVE)  0x8BDB79EB6cDC3E54E373C0E5096CffD737a5DE4B   (the escrow's decoupled arbiter; rules via UMA OOv3, no operator key)
-Escrow v4 (prev)    0x86B422CC8F75B7c5521a2552F2C34da8cb342C86   (identical bytecode; superseded to widen voting window; dispute→UMA proof settled here; arbiter 0xd933a3816E6b0818e0EEEb4f4776dA9157172755)
+Escrow v4 (LIVE)    0x17f58B3DcCad608867F19A88499f0F11C5F9b5bA   (verified; committee + disputes; HARDENED: claimRefund can't refund Submitted work + resolve window coupled on-chain to arbiter liveness; deploy block 11199179, votingWindow 600)
+UMA arbiter (LIVE)  0x850121Aa89C1C6d759F2751E01e8888e412a7a42   (the escrow's decoupled arbiter; rules via UMA OOv3, no operator key)
+Escrow v4 (prev)    0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C   (superseded by the hardened redeploy; committee→payout proofs settled here; arbiter 0x8BDB79EB6cDC3E54E373C0E5096CffD737a5DE4B)
+Escrow v4 (prev-2)  0x86B422CC8F75B7c5521a2552F2C34da8cb342C86   (identical bytecode; dispute→UMA proof settled here; arbiter 0xd933a3816E6b0818e0EEEb4f4776dA9157172755)
 UMA OOv3 (Sepolia)  0xFd9e2642a170aDD10F53Ee14a93FcF2F31924944   · bond currency 6TEST 0x3870419Ba2BBf0127060bCB37f69A1b1C090992B
 Escrow v2           0xD6cB413c0E4a5839Fd4B02aFFeBF65e6868726b9   (verified, open marketplace)
 MockUSDC (6dp)      0x4C4D1223BcC47E380CF4C37652EaDFe10A9Fd910   (verified)

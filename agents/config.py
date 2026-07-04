@@ -60,10 +60,12 @@ ESCROW_V3_ADDRESS = os.environ.get("ESCROW_V3_CONTRACT_ADDRESS", "0xFAab4d6ff5CB
 REVEAL_DELAY_BLOCKS = int(os.environ.get("REVEAL_DELAY_BLOCKS", "1"))
 REVEAL_WINDOW_BLOCKS = int(os.environ.get("REVEAL_WINDOW_BLOCKS", "256"))
 # v4 open-marketplace escrow: committee (M-of-N) evaluation + staked disputes escalating to a decoupled,
-# decentralized arbiter (UMA Optimistic Oracle V3). Live + verified on Sepolia (deploy block 11189574).
-ESCROW_V4_ADDRESS = os.environ.get("ESCROW_V4_CONTRACT_ADDRESS", "0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C")
+# decentralized arbiter (UMA Optimistic Oracle V3). Live + verified on Sepolia (deploy block 11199179).
+# Hardened redeploy: claimRefund no longer refunds a Submitted job (no work-theft) + the resolve window is
+# coupled on-chain to the arbiter liveness (resolveTimeout can't preempt UMA). Prev v4 = 0x8F60…264C.
+ESCROW_V4_ADDRESS = os.environ.get("ESCROW_V4_CONTRACT_ADDRESS", "0x17f58B3DcCad608867F19A88499f0F11C5F9b5bA")
 # The decoupled arbiter adapter (IS the escrow's `arbiter`; rules via UMA OOv3, never an operator key).
-UMA_ARBITER_ADDRESS = os.environ.get("UMA_ARBITER_ADDRESS", "0x8BDB79EB6cDC3E54E373C0E5096CffD737a5DE4B")
+UMA_ARBITER_ADDRESS = os.environ.get("UMA_ARBITER_ADDRESS", "0x850121Aa89C1C6d759F2751E01e8888e412a7a42")
 # UMA Optimistic Oracle V3 on Sepolia + its whitelisted bond currency. We use UMA's zero-minimum-bond,
 # publicly-mintable test token "6TEST" (6-dp) so a real dispute is demonstrable live on Sepolia; the
 # escrow settlement token stays MockUSDC. Production sets a meaningful bond + (on mainnet) real USDC.

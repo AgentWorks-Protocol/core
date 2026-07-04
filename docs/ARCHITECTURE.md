@@ -138,7 +138,7 @@ protects); reaching quorum is *tentative* — principal only moves at finalize/r
 Sealed accept: **[MEV.md](MEV.md)**. Committee + staked disputes + the decoupled arbiter: **[ARBITRATION.md](ARBITRATION.md)**.
 
 ## Where the code lives
-- Contract + tests: `contracts/src/AgentWorksEscrowV4.sol` + `AgentWorksUmaArbiter.sol`, `contracts/test/` (180 tests; v3/v2/v1 kept for history).
+- Contract + tests: `contracts/src/AgentWorksEscrowV4.sol` + `AgentWorksUmaArbiter.sol`, `contracts/test/` (186 tests; v3/v2/v1 kept for history).
 - CAW wrapper: `agents/caw/client.py`. v4 calldata/reads: `agents/escrow_v4.py`.
 - Reasoning: `agents/reasoning.py`. Pacts: `agents/pacts.py` (+ `docs/pacts/*.json`).
 - Pool + onboarding: `agents/registry.py`. Autonomous loops: `agents/autonomous.py`. HTTP surface: `agents/server.py`.

@@ -80,11 +80,11 @@ export const STATUS_LABELS_V2 = ["None", "Open", "Funded", "Accepted", "Submitte
 /** v4 Status enum index → human label (adds Resolved + Disputed; Completed shifts to 7). */
 export const STATUS_LABELS_V4 = ["None", "Open", "Funded", "Accepted", "Submitted", "Resolved", "Disputed", "Completed", "Rejected", "Refunded"] as const;
 
-/** Block the v4 (committee + disputes) escrow was deployed at — lower bound for v4 event log scans. */
-export const ESCROW_V4_FROM_BLOCK = 11189574n;
+/** Block the live v4 (hardened: claimRefund + resolve-window coupling) escrow was deployed at. */
+export const ESCROW_V4_FROM_BLOCK = 11199179n;
 
-/** Deploy block of the previous v4 escrow (identical bytecode) — lower bound for its event scans. */
-export const ESCROW_V4_PREV_FROM_BLOCK = 11124671n;
+/** Deploy block of the previous v4 escrow (0x8F60…264C, where jobs #1–#3 settled) — its event-scan floor. */
+export const ESCROW_V4_PREV_FROM_BLOCK = 11189574n;
 
 /** v4 escrow ABI: Job tuple drops `evaluator`, adds committeeSize+quorum; plus committee/vote reads + events. */
 export const escrowAbiV4 = [

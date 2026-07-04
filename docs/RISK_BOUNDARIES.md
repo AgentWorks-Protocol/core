@@ -99,7 +99,7 @@ Even with a valid Pact, the **contract** constrains where funds can go:
   deadline), the Client reclaims via **`claimRefund`** → `Refunded`. Outstanding commitments are inert and
   never block the refund. Funds are never strandable.
 - Custom errors over `require` strings; an event on every transition for legible on-chain audit.
-- 180/180 Foundry tests cover committee voting/quorum, tentative resolve, finalize, staked dispute + arbiter ruling + anti-freeze timeout, the sealed commit-reveal race (timing, binding, replay,
+- 186/186 Foundry tests cover committee voting/quorum, tentative resolve, finalize, staked dispute + arbiter ruling + anti-freeze timeout, the sealed commit-reveal race (timing, binding, replay,
   winner), access control, status guards, expiry refund, and CEI/reentrancy.
 
 ## Threat-model summary

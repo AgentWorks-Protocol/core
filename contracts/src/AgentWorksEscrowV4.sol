@@ -20,6 +20,14 @@ interface IArbiter {
     function openDispute(uint256 jobId, bool committeePayout, address disputer) external;
 }
 
+/// @notice Optional arbiter extension. Adapters whose ruling is OPTIMISTIC (settle only after a liveness
+///         period — e.g. the UMA Optimistic Oracle V3 adapter) expose that liveness so the escrow can
+///         guarantee, at construction, that its resolve-timeout window can never preempt a live ruling.
+///         Adapters that rule synchronously simply omit it (the escrow's ctor check is skipped).
+interface IArbiterLiveness {
+    function liveness() external view returns (uint64);
+}
+
 /// @title AgentWorksEscrowV4
 /// @notice Open-marketplace settlement layer hardened against a single point of failure in EVALUATION.
 ///         v3's lone `evaluator` (who could hallucinate, go offline, or be compromised and unilaterally
@@ -104,6 +112,11 @@ contract AgentWorksEscrowV4 {
 
     uint8 public constant MAX_COMMITTEE = 7; // gas bound on the createJob loop + uint8 tallies
 
+    /// @notice Assumed slot time used ONLY to bound the resolve window from below against the arbiter's
+    ///         liveness. Ethereum post-merge uses fixed 12s slots; a slot may be skipped (a block arrives
+    ///         LATER, never sooner), so `blocks * 12` is a safe lower bound on the window's real-time span.
+    uint64 public constant SECONDS_PER_BLOCK = 12;
+
     uint256 public nextJobId = 1;
 
     mapping(uint256 => Job)        private jobs;
@@ -174,6 +187,7 @@ contract AgentWorksEscrowV4 {
     error NotLosingParty(address caller);
     error NotArbiter(address caller);
     error ResolveWindowOpen(uint64 resolveEnd);
+    error ResolveWindowTooShort(); // resolve window would preempt the arbiter's liveness
 
     constructor(
         address token_,
@@ -195,6 +209,18 @@ contract AgentWorksEscrowV4 {
         disputeWindowBlocks = disputeWindowBlocks_;
         disputeResolveWindowBlocks = disputeResolveWindowBlocks_;
         arbiter = arbiter_;
+
+        // Couple the resolve-timeout window to the arbiter's liveness. {resolveTimeout} is an anti-freeze
+        // backstop that enacts the committee's ORIGINAL tentative outcome once the window elapses — but if
+        // that window were shorter (in real time) than the arbiter's optimistic liveness, a slow-but-honest
+        // ruling could be silently preempted and every staked dispute discarded. If the arbiter exposes a
+        // liveness() (the UMA adapter does), require the window to span at least that liveness so the arbiter
+        // always gets to rule first. Adapters without a liveness (synchronous rulings) skip this guard.
+        try IArbiterLiveness(arbiter_).liveness() returns (uint64 lv) {
+            if (lv != 0 && uint256(disputeResolveWindowBlocks_) * SECONDS_PER_BLOCK < lv) {
+                revert ResolveWindowTooShort();
+            }
+        } catch {}
     }
 
     /// @notice Client posts an OPEN job naming an evaluator COMMITTEE (odd N) + a strict-majority quorum.
@@ -390,6 +416,9 @@ contract AgentWorksEscrowV4 {
     ///         job by executing the committee's ORIGINAL tentative outcome. This is NOT an arbitrary
     ///         ruling — it only ever enacts what the committee already decided, so it is not a
     ///         centralization vector. Bond recovery is handled at the arbiter adapter (UMA liveness).
+    /// @dev    The constructor guarantees `disputeResolveWindowBlocks` spans at least the arbiter's liveness
+    ///         (see the IArbiterLiveness coupling), so this can never preempt an honest optimistic ruling —
+    ///         by the time it is callable, the arbiter's assertion is settle-able and would have resolved.
     function resolveTimeout(uint256 jobId) external {
         Job storage job = _get(jobId);
         if (job.status != Status.Disputed) revert BadStatus(job.status, Status.Disputed);
@@ -402,13 +431,16 @@ contract AgentWorksEscrowV4 {
     }
 
     /// @notice Client reclaims escrowed funds after the deadline if the job never reached settlement.
-    /// @dev    Allowed only from Funded/Accepted/Submitted (a job in Resolved/Disputed has its own
-    ///         timers + the finalize/timeout exits, so claimRefund must not let a client sidestep a
-    ///         tentative payout). Outstanding commitments/votes are inert once the status moves.
+    /// @dev    Allowed only from Funded/Accepted — NOT Submitted. Once work is Submitted the deliverable is
+    ///         on-chain and the committee owns the outcome: a client must not be able to set a short deadline,
+    ///         let the provider deliver, then unilaterally refund itself and keep the work for free. A stalled
+    ///         Submitted job is instead flushed permissionlessly by {forceResolve} after the voting deadline
+    ///         (→ tentative refund), so funds are never strandable. Resolved/Disputed have their own
+    ///         finalize/timeout exits. Outstanding commitments/votes are inert once the status moves.
     function claimRefund(uint256 jobId) external {
         Job storage job = _get(jobId);
         if (msg.sender != job.client) revert NotClient(msg.sender);
-        if (job.status != Status.Funded && job.status != Status.Accepted && job.status != Status.Submitted) {
+        if (job.status != Status.Funded && job.status != Status.Accepted) {
             revert BadStatus(job.status, Status.Funded);
         }
         if (block.timestamp < job.deadline) revert DeadlineNotReached(job.deadline);

@@ -13,11 +13,12 @@ export const CFG = {
   escrowV3: env("NEXT_PUBLIC_ESCROW_V3_ADDRESS", "0xFAab4d6ff5CBEcD72a4e1B9315662e7846166D69") as `0x${string}`,
   // v4 open-marketplace escrow: committee (M-of-N) consensus evaluation + staked disputes escalating to a
   // decoupled, decentralized arbiter (UMA OOv3). This is the LIVE marketplace the dashboard reads.
-  escrowV4: env("NEXT_PUBLIC_ESCROW_V4_ADDRESS", "0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C") as `0x${string}`,
-  // Previous v4 deployment (identical bytecode, superseded only to widen the voting window). The dashboard
-  // also reads it so historical jobs that settled there still resolve their status + settling tx.
-  escrowV4Prev: env("NEXT_PUBLIC_ESCROW_V4_PREV_ADDRESS", "0x86B422CC8F75B7c5521a2552F2C34da8cb342C86") as `0x${string}`,
-  umaArbiter: env("NEXT_PUBLIC_UMA_ARBITER", "0x8BDB79EB6cDC3E54E373C0E5096CffD737a5DE4B") as `0x${string}`,
+  escrowV4: env("NEXT_PUBLIC_ESCROW_V4_ADDRESS", "0x17f58B3DcCad608867F19A88499f0F11C5F9b5bA") as `0x${string}`,
+  // Previous v4 deployment (0x8F60…264C, where jobs #1–#3 settled), superseded by the hardened redeploy
+  // (claimRefund can't refund a Submitted job; resolveTimeout coupled to arbiter liveness). The dashboard
+  // still reads it so those historical jobs resolve their status + settling tx.
+  escrowV4Prev: env("NEXT_PUBLIC_ESCROW_V4_PREV_ADDRESS", "0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C") as `0x${string}`,
+  umaArbiter: env("NEXT_PUBLIC_UMA_ARBITER", "0x850121Aa89C1C6d759F2751E01e8888e412a7a42") as `0x${string}`,
   // Deployed autonomous agent service (DigitalOcean droplet, co-located with the TSS signer). The dashboard
   // is a live window onto these agents: "Post job" fires POST /trigger and the board watches them reason +
   // settle. Reads proxy through /api/agent/* (same-origin) so an HTTPS page can reach the HTTP service.

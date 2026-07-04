@@ -61,9 +61,12 @@ live on Ethereum Sepolia. The ruling authority is UMA's economic oracle, not any
 3. If it **is** counter-disputed, UMA's DVM resolves it (on mainnet) and the same callback fires.
 
 **Live deployment (Sepolia, verified):**
-- `AgentWorksEscrowV4` (live): `0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C` (deploy block 11189574;
-  votingWindow 600, disputeWindow 50, resolveWindow 50 blocks)
-- `AgentWorksUmaArbiter` (live): `0x8BDB79EB6cDC3E54E373C0E5096CffD737a5DE4B` (its `arbiter`)
+- `AgentWorksEscrowV4` (live, hardened): `0x17f58B3DcCad608867F19A88499f0F11C5F9b5bA` (deploy block 11199179;
+  votingWindow 600, disputeWindow 50, resolveWindow 50 blocks; resolveWindow coupled on-chain to the arbiter
+  liveness so `resolveTimeout` can never preempt an honest UMA ruling)
+- `AgentWorksUmaArbiter` (live): `0x850121Aa89C1C6d759F2751E01e8888e412a7a42` (its `arbiter`)
+- Previous v4 (committee→payout proofs): escrow `0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C` · arbiter
+  `0x8BDB79EB6cDC3E54E373C0E5096CffD737a5DE4B`
 - UMA OOv3: `0xFd9e2642a170aDD10F53Ee14a93FcF2F31924944` · bond currency `6TEST`
   `0x3870419Ba2BBf0127060bCB37f69A1b1C090992B` (UMA-whitelisted, 6-dp) · bond + liveness are ctor params.
 - Previous v4 (identical bytecode, superseded only to widen the voting window 50→600 blocks; retained
@@ -119,7 +122,7 @@ is the documented drop-in alternative the same seam accepts.
 ## 4. Evidence
 
 - **Foundry:** `contracts/test/AgentWorksEscrowV4.t.sol` (63 tests) + `AgentWorksUmaArbiter.t.sol`
-  (10 tests, against `MockOptimisticOracleV3`). Suite-wide **180 tests** pass.
+  (10 tests, against `MockOptimisticOracleV3`). Suite-wide **186 tests** pass.
 - **Live (Sepolia):** v4 + the UMA adapter deployed + verified; wiring confirmed (`escrow.arbiter()` ==
   adapter, `adapter.oo()` == UMA OOv3). **Both settlement paths demonstrated live** — committee→finalize
   payout (job #1 `Completed`) and committee→**staked dispute→UMA→refund** (job #2 `Rejected`, UMA assertion

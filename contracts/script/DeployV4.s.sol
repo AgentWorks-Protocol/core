@@ -34,9 +34,11 @@ contract DeployV4 is Script {
             vm.envAddress("USDC_TOKEN_ADDRESS"),
             _u("REVEAL_DELAY_BLOCKS", 1),
             _u("REVEAL_WINDOW_BLOCKS", 256),
-            _u("VOTING_WINDOW_BLOCKS", 50),
-            _u("DISPUTE_WINDOW_BLOCKS", 30),
-            _u("DISPUTE_RESOLVE_WINDOW_BLOCKS", 50),
+            _u("VOTING_WINDOW_BLOCKS", 600),
+            _u("DISPUTE_WINDOW_BLOCKS", 50),
+            // Must span the arbiter liveness (7200s / 12s-per-block = 600 blocks) or the escrow ctor reverts
+            // ResolveWindowTooShort — so resolveTimeout can never preempt an honest UMA optimistic ruling.
+            _u("DISPUTE_RESOLVE_WINDOW_BLOCKS", 700),
             address(arbiter)
         );
         // 3. One-shot wiring.

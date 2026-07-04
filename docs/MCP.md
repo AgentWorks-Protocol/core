@@ -47,7 +47,7 @@ Add to your MCP config (`claude_desktop_config.json`, or `.mcp.json` for Claude 
         "AGENT_WALLET_API_URL": "https://api.agenticwallet.cobo.com",
         "CAW_CHAIN_ID": "SETH",
         "RPC_URL": "https://sepolia.drpc.org",
-        "ESCROW_V4_CONTRACT_ADDRESS": "0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C",
+        "ESCROW_V4_CONTRACT_ADDRESS": "0x17f58B3DcCad608867F19A88499f0F11C5F9b5bA",
         "USDC_TOKEN_ADDRESS": "0x4C4D1223BcC47E380CF4C37652EaDFe10A9Fd910",
         "AGENT_API": "https://insightful-wisdom-production-5c62.up.railway.app"
       }
