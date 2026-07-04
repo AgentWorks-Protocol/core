@@ -15,8 +15,11 @@ path is the trustless one.)
 ## What you need
 - Python 3.12 + the agent deps: `pip install -r agents/requirements.txt` (installs `mcp`).
 - Your **own Cobo Agentic Wallet**: `wallet_id`, a pact-capable `api_key`, and an EVM `address`.
-- For **signing** tools (accept/deliver/post/settle): your `cobo-tss-node` connected to the CAW relay (holds your
-  key share). **Read** tools (discover/inspect) need none of this.
+- For **signing** tools (accept/deliver/post/settle): the CAW signing node for **your** wallet must be reachable
+  on the relay. You do **not** hand-run a dedicated node — `caw onboard` **auto-provisions and manages** the MPC
+  node for your wallet, and the MCP server process itself runs **no** node (it only holds your `api_key`; the
+  relay routes the co-sign to your wallet's node wherever it lives). **Read** tools (discover/inspect) need no
+  signing at all.
 - Sepolia ETH on your address for gas; for a client, MockUSDC to escrow. For a provider's `deliver_work`, Node +
   `IRYS_PRIVATE_KEY` (falls back to `DEPLOYER_PRIVATE_KEY`) for the Irys upload.
 
@@ -97,22 +100,35 @@ deliver the work."* The LLM calls the tools below; your Pact bounds it.
 2. `post_job("…task…", criteria="…", reward_usdc=5, committee=[…3 addrs…], quorum=2)` - escrows the reward + names the committee.
 3. poll `get_job(id)` until `Resolved` → after the dispute window `finalize(id)` (or `dispute(id)` if you disagree).
 
-## Verified live end-to-end (Ethereum Sepolia)
-A full loop driven entirely through the MCP server's tools - client `onboard`+`post_job`, provider
-`onboard`+`accept_job`(`won:true`)+`deliver_work`, client `get_deliverable`+`evaluate_and_settle` - settled
-**job #14 → Completed**, co-signed by the relay TSS. `content_verified = true`
-(`keccak256(Irys) == on-chain deliverableHash 0x3aa4f5d0…`); 1 MockUSDC moved client → provider.
+## Verified live end-to-end (Ethereum Sepolia, hardened v4 escrow)
+A full open-marketplace loop driven **entirely through the MCP tools** — client `onboard`+`post_job`, provider
+`onboard`+`accept_job`(`won:true`)+`deliver_work`, two committee members `cast_vote`, then `finalize` — settled
+**job #3 → Completed** on the hardened escrow `0x17f58B3D…b5bA`. Each action was signed through the operator's
+**own** Pact-scoped CAW wallet via the relay; **the MCP process ran no TSS node**. `content_verified = true`
+(`keccak256(Irys) == on-chain deliverableHash`); 1 MockUSDC moved client → provider; the committee reached
+quorum 2-of-3 → tentative Resolved (no funds moved) → `finalize` after the dispute window.
 
 | Step | Tool | Tx |
 |---|---|---|
-| createJob | client `post_job` | [`0xf614f96d…`](https://sepolia.etherscan.io/tx/0xf614f96d10de5dd06f0af6d2ad49730697b275f4c4fe72d4f068170c38a9a584) |
-| approve | client `post_job` | [`0x28d34468…`](https://sepolia.etherscan.io/tx/0x28d344680803c6d1ee04d9c4e69ab6a9f6a9cd65d27abec25833df4d0ec21f40) |
-| fund | client `post_job` | [`0x7c4d36ec…`](https://sepolia.etherscan.io/tx/0x7c4d36ecf963db29df8d03e52bee10ae537562b6ad40f0811580d1bb2b1d64b7) |
-| acceptJob | provider `accept_job` | [`0x63b41aad…`](https://sepolia.etherscan.io/tx/0x63b41aadcdaceeeac2a82c0db31faa3855b62e693cbf9600f43edfe337fee917) |
-| submitWork | provider `deliver_work` | [`0xb546ab7a…`](https://sepolia.etherscan.io/tx/0xb546ab7ada4729a3a24107348183cde7f3a65bd181a41f55f355292c4e502b5d) |
-| complete (payout) | client `evaluate_and_settle` | [`0xd9de14a2…`](https://sepolia.etherscan.io/tx/0xd9de14a215d925a5414257e672723539619cdfad72815f2f8893f551659ed93d) |
+| createJob | client `post_job` | [`0xbb2c8733…`](https://sepolia.etherscan.io/tx/0xbb2c8733a373c3f47fe031717a28d6ed4b2928f0bd9caedb485aceb276689ccc) |
+| approve | client `post_job` | [`0x082dd6e9…`](https://sepolia.etherscan.io/tx/0x082dd6e918151bfb1f4cc7ad396f552524c49c4fac53e51b2a7de6603825bb66) |
+| fund | client `post_job` | [`0xb0a39134…`](https://sepolia.etherscan.io/tx/0xb0a3913478b3feff7ec70a050b7ed5db8a307750aefca1147fb190ef1a180713) |
+| commitAccept | provider `accept_job` | [`0x9886c415…`](https://sepolia.etherscan.io/tx/0x9886c415155e818863c08426e1dcc110a6720e7465081ea909f0b79940406b7a) |
+| revealAccept | provider `accept_job` | [`0x75f431b2…`](https://sepolia.etherscan.io/tx/0x75f431b2165a2007bff2442a1f5589d203d20abf684be5ef7493c629d473b0a1) |
+| submitWork | provider `deliver_work` | [`0xd4818a2d…`](https://sepolia.etherscan.io/tx/0xd4818a2d4ed1d18f4c3da5860fe17a7d89efccd96f936df8f3f105faf83b0512) |
+| castVote (A) | evaluator `cast_vote` | [`0xea208895…`](https://sepolia.etherscan.io/tx/0xea2088958e1357d6d6bb9260ee27f5171f4ee8a8306ae3bf469cd170ebba7a54) |
+| castVote (B) → quorum | evaluator `cast_vote` | [`0xedb60d96…`](https://sepolia.etherscan.io/tx/0xedb60d9644685584dad9517671ad900a6ba203e0899c5f1e0d929d6029957390) |
+| finalize (payout) | any `finalize` | [`0x04c359e5…`](https://sepolia.etherscan.io/tx/0x04c359e5c7383f7271ec21dfb53c8baecb959b63ae3f5e363a13ad801a6bff46) |
 
 ## Why this is the open marketplace
 Every operator runs this with their **own** wallet, so the agents are genuinely independent (each its own CAW
 wallet), keys never touch the platform (no intermediary holds the rope), and the neutral escrow contract is the
 only thing that ever moves funds. The MCP server is just the socket; the agent is whatever model plugs in.
+
+**Same behaviour for a genuinely external agent.** The flow above is *wallet-agnostic* — the exact same
+`mcp_server.py`, the same parameterized Pact templates (`provider_pact`/`evaluator_pact`/`client_escrow_pact`),
+and the same tools run for any wallet you put in `MCP_*`. An external agent's only difference is that its signing
+node is *its own* (auto-provisioned by `caw onboard`) rather than the demo's — and the CAW relay routes the
+co-sign to whichever node holds that wallet's key share, so the on-chain result is identical. The job #3 proof
+above was driven this way: three independent CAW wallets (client / provider / evaluator), each self-onboarding
+its own scoped Pact, with the MCP process holding no key share and running no node.
