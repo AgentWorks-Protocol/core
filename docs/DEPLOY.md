@@ -10,7 +10,7 @@ only the TSS signer holds the MPC key share - that separation is Cobo's security
 ┌──┴───────────────┐   ┌──────────────────────────┐  HTTPS  ┌─────────────────────┐
 │  Dashboard /web  │   │  Agent service (FastAPI) │ ──────▶ │   CAW cloud API     │
 │  (Vercel)        │   │  autonomous loops · NO   │  pact / │ (pact enforcement,  │
-│                  │   │  key material (Railway)  │  call   │  routes signing)    │
+│                  │   │  key material (DO droplet)│ call   │  routes signing)    │
 └──────────────────┘   └──────────────────────────┘         └──────────┬──────────┘
         │                         │ reads chain (web3)                  │ websocket (relay)
         │ reads chain (viem)      ▼                                     ▼
@@ -24,7 +24,7 @@ only the TSS signer holds the MPC key share - that separation is Cobo's security
 | Piece | What | Where |
 |---|---|---|
 | **Dashboard** (`/web`, Next.js 15) | demo surface - live reads + triggers the agents | **Vercel** |
-| **Agent service** (`agents/server.py`) | autonomous orchestration + LLM reasoning; **no keys** | **Railway** |
+| **Agent service** (`agents/server.py`) | autonomous orchestration + LLM reasoning; **no keys** | **DigitalOcean droplet** (isolated container, co-located with the signer) |
 | **TSS signer** (`cobo-tss-node`) | CAW MPC node that co-signs; **holds the key shares** | **DigitalOcean droplet** (`agentworks-signer`) |
 
 ---
@@ -42,7 +42,7 @@ deploys as a normal static/SSR Next.js app.
 | Live balances + job/run status (viem + agent `/runs`) | ✅ | ✅ |
 | Verified proof artifacts (autonomous runs, criticality beats, Pact JSON) | ✅ | ✅ from committed `web/data/` |
 | Etherscan / Irys deep links | ✅ | ✅ |
-| **New job → trigger** the agents (`POST /trigger`) | ✅ | ✅ (calls the Railway service) |
+| **New job → trigger** the agents (`POST /trigger`) | ✅ | ✅ (calls the droplet agent service via the same-origin proxy) |
 
 **Vercel project settings**
 - **Root Directory:** `web` (recommended). Vercel auto-detects Next.js and walks up to the repo-root
@@ -54,11 +54,11 @@ deploys as a normal static/SSR Next.js app.
 - **Public env** (`NEXT_PUBLIC_*`; sensible defaults baked in, so the app works even if unset):
   `NEXT_PUBLIC_RPC_URL`, `NEXT_PUBLIC_ESCROW_V4_ADDRESS` (live, committee + disputes), `NEXT_PUBLIC_USDC_ADDRESS`, `NEXT_PUBLIC_CLIENT_CAW`,
   `NEXT_PUBLIC_PROVIDER_CAW`, `NEXT_PUBLIC_PROVIDER_CAW_B`, `NEXT_PUBLIC_EXPLORER_BASE`,
-  `NEXT_PUBLIC_IRYS_GATEWAY`, **`NEXT_PUBLIC_AGENT_API`** (the agent-service URL - defaults to the live Railway URL).
+  `NEXT_PUBLIC_IRYS_GATEWAY`, **`NEXT_PUBLIC_AGENT_API`** (the agent-service URL - defaults to the droplet `http://139.59.135.74:8000`; reads proxy through same-origin `/api/agent/*`).
 - **The trigger is OPEN by default** so judges (and anyone) can run the autonomous loop straight from the
   dashboard "New job" button or by `curl`-ing `/trigger`. No token needed to demo.
 - **Optional production hardening - `AGENT_TRIGGER_TOKEN` (server-only, NOT `NEXT_PUBLIC`):** to stop random
-  callers spending the platform wallet, set the SAME token on **both** the agent service (Railway) and Vercel.
+  callers spending the platform wallet, set the SAME token on **both** the agent service (droplet `agent.env`) and Vercel.
   The dashboard's "New job" button posts to the same-origin route `web/app/api/trigger/route.ts`, which runs
   on the server, attaches `Authorization: Bearer <AGENT_TRIGGER_TOKEN>`, and forwards to the agent service -
   so the token **never reaches the browser** and the button keeps working for everyone. This wiring ships in
@@ -72,16 +72,22 @@ copies the verified run artifacts + Pact JSON into `web/data/`. Refresh after a 
 `pnpm --filter web snapshot`. If a Vercel build ever errors `ERR_PNPM_IGNORED_BUILDS`, set Install to
 `pnpm install --no-frozen-lockfile`.
 
-## 2. Agent service → Railway
+## 2. Agent service → DigitalOcean droplet
 
 `agents/server.py` (FastAPI) runs the autonomous loops and exposes the control + marketplace surface below.
-It talks to the CAW cloud API over HTTPS and holds **no key material**.
+It talks to the CAW cloud API over HTTPS and holds **no key material**. It runs as an **isolated container
+co-located on the signer droplet** (`agentworks-signer`, `139.59.135.74`) — a separate container from the TSS
+signer that does **not** mount the signer's key volume, so a web-service compromise can't read the key shares.
 
 ```bash
-# from repo root, Railway CLI logged in
-railway up --dockerfile agents/Dockerfile      # build context = repo root
-# Railway gives a public URL, e.g. https://<service>.up.railway.app
+# on the droplet: /root/agent/  (build context = build/ ; overlay from a prebuilt base image, no registry pull)
+docker build -f build/Dockerfile -t agentworks-agent:latest build/    # FROM agentworks-agent:base + COPY agents/
+docker compose -f docker-compose.agent.prod.yml up -d                 # public HTTP :8000, restart:always
+curl -s localhost:8000/health                                         # -> {"status":"ok","escrow_v4":"0x17f5…b5bA",…}
 ```
+
+Config lives in `/root/agent/agent.env` (gitignored, `chmod 600`); run artifacts persist on the `agent-data`
+volume (`AGENT_DATA_DIR=/data`). The signer runbook (same droplet) is [DEPLOY_SIGNER.md](DEPLOY_SIGNER.md).
 
 **Endpoints**
 
@@ -109,7 +115,7 @@ their own CAW wallet**. Full external client/provider walkthrough: [ARCHITECTURE
 - MEV (optional): `PRIVATE_RPC_URL` (private/Flashbots-style endpoint, used for reads + the prepared reveal hook),
   `MEV_PROTECT=true` to request private routing of the reveal tx. See [MEV.md](MEV.md) for the honest status.
 - LLM: `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`. · Irys: `IRYS_PRIVATE_KEY` (falls back to `DEPLOYER_PRIVATE_KEY`).
-- **Persistence (recommended on Railway):** mount a **volume** (e.g. at `/data`) and set **`AGENT_DATA_DIR=/data`**
+- **Persistence (on the droplet):** the `agent-data` volume (mounted at `/data`) with **`AGENT_DATA_DIR=/data`**
   so the off-chain board + external `registry.local.json` survive restarts/redeploys. Without it the container FS
   is ephemeral and registrations/listings reset on each deploy.
 - Hardening for a public URL: `AGENT_TRIGGER_TOKEN=<random>` (protects `POST /trigger`),

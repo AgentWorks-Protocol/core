@@ -52,7 +52,7 @@ The whole lifecycle runs **autonomously from a deployed service** - post a job a
   any MCP-capable agent. Deliverables stored on Irys (`irys/`); state persists on a mounted volume (`AGENT_DATA_DIR`).
 - **Dashboard** (`web/`, Next.js 15 + viem): landing, **New job** (triggers the agents + watches them settle
   live), **Marketplace** (read-only proof history), **Proofs** (the Pact policies + criticality beats), **Flow**.
-- **Deployment:** Vercel (web) + Railway (agent service) + **DigitalOcean droplet (TSS signer)**. The signer
+- **Deployment:** Vercel (web) + **DigitalOcean droplet** (agent service + TSS signer, co-located). The signer
   holds the MPC key shares; the dashboard and agent service hold no keys. See [ARCHITECTURE.md](ARCHITECTURE.md),
   [DEPLOY.md](DEPLOY.md), and the signer runbook [DEPLOY_SIGNER.md](DEPLOY_SIGNER.md).
 
@@ -127,7 +127,7 @@ Escrow v4 (prev-2)  0x86B422CC8F75B7c5521a2552F2C34da8cb342C86   (identical byte
 UMA OOv3 (Sepolia)  0xFd9e2642a170aDD10F53Ee14a93FcF2F31924944   · bond currency 6TEST 0x3870419Ba2BBf0127060bCB37f69A1b1C090992B
 Escrow v2           0xD6cB413c0E4a5839Fd4B02aFFeBF65e6868726b9   (verified, open marketplace)
 MockUSDC (6dp)      0x4C4D1223BcC47E380CF4C37652EaDFe10A9Fd910   (verified)
-Agent service       https://insightful-wisdom-production-5c62.up.railway.app   (/health /runs /board POST /trigger /marketplace/*)
+Agent service       http://139.59.135.74:8000   (on the signer droplet; /health /runs /board POST /trigger /marketplace/*; public via dashboard proxy /api/agent/*)
 
 Client CAW wallet   id 0da4d5c3-5fc4-4a50-878a-0e8ee1a1787d   EVM 0x6dfbd0ac9feb5bb9a9ffeaf54df203c1633c1ddd
 Provider A CAW      id bdecbada-3e1d-41d8-9e04-c12202cc9c17   EVM 0xef9349b3273b1a54faaf701231f499fe0282e643
@@ -241,7 +241,7 @@ MCP - job #14, driven entirely through the MCP server's tools (client + provider
 | GitHub repo | ✅ | this repository |
 | README + documentation | ✅ | [README.md](../README.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RISK_BOUNDARIES.md](RISK_BOUNDARIES.md), [DEPLOY.md](DEPLOY.md), this file |
 | Demo video (3–5 min) | ✅ | https://www.youtube.com/watch?v=-oFrab494Fg |
-| Project demo link | ✅ | dashboard → https://agent-works-web.vercel.app/ ; agent service `https://insightful-wisdom-production-5c62.up.railway.app` |
+| Project demo link | ✅ | dashboard → https://agent-works-web.vercel.app/ ; agent service `http://139.59.135.74:8000` (droplet; public via dashboard proxy `/api/agent/*`) |
 | Key code / config notes for CAW | ✅ | [`agents/caw/client.py`](../agents/caw/client.py), [`agents/pacts.py`](../agents/pacts.py), [`docs/pacts/`](pacts/), [RISK_BOUNDARIES.md](RISK_BOUNDARIES.md) |
 | Testnet address | ✅ | Escrow **v4** (live, hardened) `0x17f5…b5bA`, UMA arbiter `0x8501…7a42`, MockUSDC `0x4C4D…d910` |
 | Transaction hash | ✅ | the payout + refund tx sets above |

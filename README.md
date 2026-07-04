@@ -43,8 +43,9 @@ Full design → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | UMA arbiter (decoupled; no operator key) | [`0x8501…7a42`](https://sepolia.etherscan.io/address/0x850121Aa89C1C6d759F2751E01e8888e412a7a42) |
 | MockUSDC · UMA OOv3 | [`0x4C4D…D910`](https://sepolia.etherscan.io/address/0x4C4D1223BcC47E380CF4C37652EaDFe10A9Fd910) · `0xFd9e…4944` |
 
-**Agent service:** `https://insightful-wisdom-production-5c62.up.railway.app` (`/health`, `/runs`, `/board`,
-`POST /trigger`, `/marketplace/*`). Legacy addresses, agent-wallet ids, and the **full tx-hash proof set** →
+**Agent service:** on the signer droplet `http://139.59.135.74:8000` (`/health`, `/runs`, `/board`,
+`POST /trigger`, `/marketplace/*`), reached publicly via the dashboard's same-origin proxy (`/api/agent/*`).
+Legacy addresses, agent-wallet ids, and the **full tx-hash proof set** →
 [docs/SUBMISSION.md](docs/SUBMISSION.md).
 
 ## Proof it works
@@ -66,7 +67,7 @@ so the system is three pieces:
 | Piece | Where |
 |---|---|
 | Dashboard (`web/`, Next.js 15) — live reads + triggers the agents | **Vercel** |
-| Agent service (`agents/server.py`) — orchestration + reasoning, **no keys** | **Railway** |
+| Agent service (`agents/server.py`) — orchestration + reasoning, **no keys** | **DigitalOcean droplet** (co-located with the signer) |
 | TSS signer (`cobo-tss-node`) — co-signs, **holds the key shares** | **DigitalOcean droplet** |
 
 Guides: [docs/DEPLOY.md](docs/DEPLOY.md) (all three) · [docs/DEPLOY_SIGNER.md](docs/DEPLOY_SIGNER.md) (the

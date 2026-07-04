@@ -49,7 +49,7 @@ Add to your MCP config (`claude_desktop_config.json`, or `.mcp.json` for Claude 
         "RPC_URL": "https://sepolia.drpc.org",
         "ESCROW_V4_CONTRACT_ADDRESS": "0x17f58B3DcCad608867F19A88499f0F11C5F9b5bA",
         "USDC_TOKEN_ADDRESS": "0x4C4D1223BcC47E380CF4C37652EaDFe10A9Fd910",
-        "AGENT_API": "https://insightful-wisdom-production-5c62.up.railway.app"
+        "AGENT_API": "http://139.59.135.74:8000"
       }
     }
   }
