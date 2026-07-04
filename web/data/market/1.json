@@ -1,96 +1,78 @@
 {
-  "run_id": "df517d32b1",
+  "run_id": "8799d6be71",
   "job_id": 1,
-  "escrow": "0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C",
   "txs": {
-    "createJob": "0x196afd36f9d1d59ed487839ace4e3433141513dc216a6ddc1904150e557ab12d",
-    "approve": "0xb98a0aeb4014e863d2cbf36f8575d4119ea331d8f0549a00fbf35268b322c7fa",
-    "fund": "0x87e4212cdb4a63ac5c6f171a5a575eb4d3c168224252aed9aa11bb07e596b24f",
-    "commitAccept": "0xa5cb7016db6b413456f1a8f6d1a570682bbba078b91af727952295a16c0f4e0c",
-    "revealAccept": "0x310dc923b3cb509be4c443e44a19016e88ff3e2e28c53919e8eab726ece64655",
-    "submitWork": "0x43a154ff69d90619f643d2e1725691b67a6015ad7a64061ccf1640d039d4ad7f",
-    "finalize": "0xcb57533b7db81973e926d9ad188a2cb098b43bb1ae7b9ff15d9089d8b0218762"
+    "createJob": "0xb5ef817c957c70ae31bf3d2135e8e2223e9b2ec1c967baa6a4e8de4aba73b624",
+    "approve": "0x737fcbfb7e1f54bb5c81d750f9f5d341c74bfcaaa87d413089aaabcf01c625fa",
+    "fund": "0xb6d126f2bf81863879d1c088b3154272eb1f35affbaad9824dd55903c4b71cf5",
+    "commitAccept": "0xae16e44263b4c40b0823b7afc69cb6b0e86156da73f3dd424dd09e63fd4b6097",
+    "revealAccept": "0x593287a873437206a1e51d4de7b95d826170fba379526afa9e124ef02cd83223",
+    "submitWork": "0x7249dbb5d3e43a8d0b211eb064f45348d79579f31b2a8b0fb7ffa714259f01fd",
+    "finalize": "0xcae19436fe62f09ccf2ef894b44d4b5cc809b242c719fc4c1c5b55a17cbad79e"
   },
   "accept_decisions": {
     "Provider": {
       "accept": true,
-      "reason": "The task is simple, the reward is fair, and I can easily deliver a clear explanation."
+      "reason": "I can easily generate a concise, plain-language explanation meeting the criteria, and the reward is fair for the minimal effort required."
     }
   },
   "winner": "Provider",
   "winner_addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
   "irys": {
-    "id": "7nVvNfuVKvZmyd2pf2Wyh988mxUabuxDZdveSS2FnFFk",
-    "url": "https://devnet.irys.xyz/7nVvNfuVKvZmyd2pf2Wyh988mxUabuxDZdveSS2FnFFk",
-    "bytes": 402,
-    "price": "1496702441169",
+    "id": "AXumFLGaEVkKmLp5HM6mK9rfTmEGekj5cTMb3k5A25Lv",
+    "url": "https://devnet.irys.xyz/AXumFLGaEVkKmLp5HM6mK9rfTmEGekj5cTMb3k5A25Lv",
+    "bytes": 435,
+    "price": "1460062202494",
     "funded": "0"
   },
-  "deliverable": "An on-chain escrow works like a neutral digital vault that holds the buyer's money until the seller delivers what was promised. Because the funds are locked in a smart contract, neither party can mess with them alone—both must follow the agreed rules for the money to be released. This lets strangers trade safely without needing to trust each other, since the escrow automatically enforces the deal.",
+  "deliverable": "An Mâ€‘ofâ€‘N committee of independent evaluators votes on agent actions, so that no single evaluator can make decisionsâ€”trust comes from needing a majority agreement. Additionally, a builtâ€‘in dispute window allows anyone to challenge a result onâ€‘chain before it is finalized, with a designated arbiter resolving conflicts. This twoâ€‘step safeguard ensures that outcomes are both democratically validated and open to correction.",
   "committee": [
     "0x48f2a3749a18684c31e322abef3e8e855c116f06",
     "0x78cf963c21268eb384ba24e7c17eb6e5a4b7e5f1",
     "0x124aec0d4f2782591b3be95b520f05779cb30ccb"
   ],
-  "committee_models": {
-    "Evaluator A": "deepseek-v4-flash",
-    "Evaluator B": "llama-3.3-70b-versatile",
-    "Evaluator C": "gemini-2.5-flash"
-  },
   "committee_votes": {
     "Evaluator A": {
       "addr": "0x48f2a3749a18684c31e322abef3e8e855c116f06",
-      "model": "deepseek-v4-flash",
       "accept": true,
-      "reason": "The deliverable is 2-3 plain language sentences that clearly explain how on-chain escrow works and mentions a neutral escrow holding funds.",
-      "onchain": false,
-      "note": "Genuinely judged this deliverable (approve); its castVote tx stalled in CAW behind clogged low-tip txs, so it is not counted in the on-chain quorum."
+      "reason": "The deliverable explains in plain language how an M-of-N committee voting and an on-chain dispute window with arbiter make an autonomous agent marketplace trustworthy, meeting all acceptance criteria."
     },
     "Evaluator C": {
       "addr": "0x124aec0d4f2782591b3be95b520f05779cb30ccb",
-      "model": "gemini-2.5-flash",
       "accept": true,
-      "reason": "The explanation is clear, uses plain language, is exactly three sentences, and correctly describes the neutral escrow holding funds, meeting all acceptance criteria.",
-      "onchain": true
-    },
-    "Evaluator B": {
-      "addr": "0x78cf963c21268eb384ba24e7c17eb6e5a4b7e5f1",
-      "model": "llama-3.3-70b-versatile",
-      "accept": true,
-      "reason": "Model judgment for this deliverable was blocked by the Groq free-tier daily rate limit (429); B's independent CAW wallet cast the confirming on-chain vote to complete the quorum.",
-      "onchain": true,
-      "note": "On-chain vote real; model call for this specific deliverable was externally rate-limited (B judged genuinely in earlier runs #7/#8/#10/#11)."
+      "reason": "The explanation is clear, concise, uses plain language, and accurately covers all required elements within the specified sentence count."
     }
   },
   "vote_txs": {
-    "Evaluator C": "0xadf6546dcf0c3fec4ffc895d6d6ceff37c402b339a6d6008d9295ac8c2979db0",
-    "Evaluator B": "0x8d1e8e07f077009412c3179adf63e9014f27127ed5a30fe262c708a2e2f37fa9"
+    "Evaluator A": "0x53c5b0ef5f851875ce0424a6753425c582fcb735a89c1672009b1bc6a2d56967",
+    "Evaluator C": "0x80080d0173e9fc6a68116dad381ba0dd28b4ccae361d3d1d6d31f7a772765263"
   },
   "tentative": "payout",
   "verdict": {
     "accept": true,
-    "reason": "committee 2-0 on-chain (quorum 2 of 3)"
+    "reason": "committee 2-0 (quorum 2)"
   },
   "branch": "payout",
-  "status": "completed",
-  "task": "Write a clear 2-3 sentence explanation, for a non-expert, of how an on-chain escrow lets two agents who don't trust each other transact safely.",
-  "criteria": "Plain language, 2-3 sentences, mentions the neutral escrow holding funds.",
+  "status": "settled",
+  "task": "Explain in 2-3 sentences, for a non-expert, how an M-of-N committee of independent AI evaluators plus an on-chain dispute window makes an autonomous agent marketplace trustworthy.",
+  "criteria": "Plain language, 2-3 sentences; mentions committee voting and the dispute/arbiter safeguard.",
   "amount_usdc": 5.0,
   "client": "0x6dfbd0ac9feb5bb9a9ffeaf54df203c1633c1ddd",
   "fund_decision": {
     "fund": true,
-    "reason": "The task is legitimate and the price is reasonable within the available budget."
+    "reason": "The task is clear, has reasonable acceptance criteria, and the price is within budget."
   },
-  "spec_hash": "0x0318817b9ad7a678026e61b25ec587acf1e8a8bceb6d8e292decfda7ed63723f",
+  "spec_hash": "0x220b305e2a8a0064d3b9f0eb5bef5a3c9170547489be70b973c86022d99808ef",
   "quorum": 2,
   "commits": {
     "Provider": {
       "addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
-      "tx": "0xa5cb7016db6b413456f1a8f6d1a570682bbba078b91af727952295a16c0f4e0c"
+      "tx": "0xae16e44263b4c40b0823b7afc69cb6b0e86156da73f3dd424dd09e63fd4b6097"
     }
   },
   "provider": "0xef9349b3273b1a54faaf701231f499fe0282e643",
   "final_status": "Completed",
   "content_verified": true,
-  "note": "Live-escrow committee run on 3 independent CAW wallets. Multi-model judging is genuine: A (deepseek) and C (gemini) both judged this deliverable and approved. On-chain quorum (2 of 3) was reached by C + B's wallets; A's castVote stalled in CAW and B's model call hit the Groq daily rate limit (its wallet still cast the confirming on-chain vote)."
+  "escrow": "0x17f58B3DcCad608867F19A88499f0F11C5F9b5bA",
+  "note": "Live-escrow (hardened v4 0x17f5…b5bA) committee run: 3 independent CAW-wallet evaluators, quorum 2. Evaluators A (deepseek) + C (gemini) judged this deliverable and cast on-chain approve votes → 2-0 quorum → finalize → payout."
 }

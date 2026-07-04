@@ -62,14 +62,22 @@ is the human review. The literal policies ship in [`docs/pacts/`](pacts/). Detai
 
 ## Current completion (working, verified on-chain)
 - ✅ Full lifecycle on escrow **v4 (committee consensus + staked disputes)**, **both settlement paths proven
-  live on Sepolia**, **no operator key ruling either**. The live escrow (`0x8F60…264C`, arbiter `0x8BDB…DE4B`)
-  and the previous v4 (`0x86B4…2C86`, arbiter `0xd933…2755`) share **identical bytecode** — the redeploy only
-  widened the voting window (50→600 blocks) — so every proof below stands:
-  - **Committee → finalize → payout on 3 independent CAW wallets (live escrow, job #1):** a 3-evaluator
-    committee (quorum 2), each on its **own** CAW wallet, judged the deliverable and `castVote`d on-chain 2-0
-    (`C 0xadf6546d…`, `B 0x8d1e8e07…`) → tentative `Resolved` (no funds moved) → after the dispute window
-    `finalize 0xcb57533b…` → **Completed**, 5 USDC to the provider.
-  - **Committee → staked dispute → UMA → refund (previous v4, job #2):** committee resolved tentative payout → the losing
+  live on Sepolia**, **no operator key ruling either**. The **live escrow is the hardened redeploy**
+  (`0x17f5…b5bA`, arbiter `0x8501…7a42`): `claimRefund` can no longer refund a **Submitted** job (a client
+  can't take delivered work then refund itself) and the resolve-timeout window is **coupled on-chain to the
+  arbiter liveness** so `resolveTimeout` can't preempt an honest UMA ruling. The previous v4 (`0x8F60…264C`,
+  arbiter `0x8BDB…DE4B`) and prev-2 (`0x86B4…2C86`, arbiter `0xd933…2755`) share the same lifecycle/bytecode
+  lineage, so every proof below stands:
+  - **Committee → finalize → payout on 3 independent CAW wallets (LIVE hardened escrow `0x17f5…b5bA`, job #1):**
+    a 3-evaluator committee (quorum 2), each on its **own** CAW wallet, judged the deliverable and `castVote`d
+    on-chain 2-0 (`A 0x53c5b0ef…`, `C 0x80080d01…`) → tentative `Resolved` (no funds moved) → after the dispute
+    window `finalize 0xcae19436…` → **Completed**, 5 USDC to the provider. (createJob `0xb5ef817c…`, fund
+    `0xb6d126f2…`, commit `0xae16e442…`, reveal `0x593287a8…`, submitWork `0x7249dbb5…`; deliverable on Irys
+    `AXumFLGa…`, content hash verified.)
+  - **Committee → finalize → payout on 3 independent CAW wallets (previous v4 `0x8F60…264C`, job #1):** the
+    original flagship — `castVote` 2-0 (`C 0xadf6546d…`, `B 0x8d1e8e07…`) → `finalize 0xcb57533b…` →
+    **Completed**, 5 USDC to the provider.
+  - **Committee → staked dispute → UMA → refund (prev-2 v4, job #2):** committee resolved tentative payout → the losing
     side staked a bond + `dispute`d → the adapter posted a **real UMA OOv3 assertion** (`0x26d55b3f…`) → after
     liveness `settle` → UMA callback → `resolveDispute` **overturned to refund** (`Rejected`). Txs: dispute
     `0x143a0531…`, settle `0x8e40fdc9…`.
@@ -125,7 +133,21 @@ Client CAW wallet   id 0da4d5c3-5fc4-4a50-878a-0e8ee1a1787d   EVM 0x6dfbd0ac9feb
 Provider A CAW      id bdecbada-3e1d-41d8-9e04-c12202cc9c17   EVM 0xef9349b3273b1a54faaf701231f499fe0282e643
 Provider B (race)                                            EVM 0x7ea0701d657e3427c2bb3bc195e943a81c5fc69e
 
-COMMITTEE CONSENSUS -> FINALIZE (LIVE escrow v4 0x8F60…264C) - job #1: a 3-evaluator committee on THREE
+COMMITTEE CONSENSUS -> FINALIZE (LIVE hardened escrow v4 0x17f58B3D…b5bA) - job #1: a 3-evaluator committee on
+         THREE INDEPENDENT CAW wallets (quorum 2) each LLM-judged + castVoted on-chain; 2-0 -> tentative Resolved
+         (NO funds moved) -> dispute window elapsed with no dispute -> finalize -> Completed, 5 USDC to
+         provider. No operator key ruled. Re-anchors the demo on the hardened escrow (claimRefund can't refund
+         Submitted work; resolveTimeout coupled to arbiter liveness). (Committee: A 0x48f2a3… deepseek / C 0x124aec… gemini both judged + voted.)
+  createJob     0xb5ef817c957c70ae31bf3d2135e8e2223e9b2ec1c967baa6a4e8de4aba73b624   (committee=3 quorum=2)
+  fund          0xb6d126f2bf81863879d1c088b3154272eb1f35affbaad9824dd55903c4b71cf5
+  commitAccept  0xae16e44263b4c40b0823b7afc69cb6b0e86156da73f3dd424dd09e63fd4b6097   (sealed - no jobId)
+  revealAccept  0x593287a873437206a1e51d4de7b95d826170fba379526afa9e124ef02cd83223
+  submitWork    0x7249dbb5d3e43a8d0b211eb064f45348d79579f31b2a8b0fb7ffa714259f01fd   (Irys AXumFLGaEVkKmLp5HM6mK9rfTmEGekj5cTMb3k5A25Lv)
+  castVote A    0x53c5b0ef5f851875ce0424a6753425c582fcb735a89c1672009b1bc6a2d56967   (deepseek 0x48f2a3…, approve)
+  castVote C    0x80080d0173e9fc6a68116dad381ba0dd28b4ccae361d3d1d6d31f7a772765263   (gemini 0x124aec… -> quorum 2-of-3, tentative payout)
+  finalize      0xcae19436fe62f09ccf2ef894b44d4b5cc809b242c719fc4c1c5b55a17cbad79e   (committee payout executed)
+
+COMMITTEE CONSENSUS -> FINALIZE (previous v4 0x8F60…264C) - job #1: a 3-evaluator committee on THREE
          INDEPENDENT CAW wallets (quorum 2) each LLM-judged + castVoted on-chain; 2-0 -> tentative Resolved
          (NO funds moved) -> dispute window elapsed with no dispute -> finalize -> Completed, 5 USDC to
          provider. No operator key ruled. (Committee: A 0x48f2a3… deepseek / B 0x78cf96… llama / C 0x124aec… gemini.)
@@ -221,7 +243,7 @@ MCP - job #14, driven entirely through the MCP server's tools (client + provider
 | Demo video (3–5 min) | ✅ | https://www.youtube.com/watch?v=-oFrab494Fg |
 | Project demo link | ✅ | dashboard → https://agent-works-web.vercel.app/ ; agent service `https://insightful-wisdom-production-5c62.up.railway.app` |
 | Key code / config notes for CAW | ✅ | [`agents/caw/client.py`](../agents/caw/client.py), [`agents/pacts.py`](../agents/pacts.py), [`docs/pacts/`](pacts/), [RISK_BOUNDARIES.md](RISK_BOUNDARIES.md) |
-| Testnet address | ✅ | Escrow **v4** (live) `0x8F60…264C`, UMA arbiter `0x8BDB…DE4B`, MockUSDC `0x4C4D…d910` |
+| Testnet address | ✅ | Escrow **v4** (live, hardened) `0x17f5…b5bA`, UMA arbiter `0x8501…7a42`, MockUSDC `0x4C4D…d910` |
 | Transaction hash | ✅ | the payout + refund tx sets above |
 | Agent wallet address | ✅ | Client `0x6dfb…1ddd`, Provider A `0xef93…e643`, Provider B `0x7ea0…c69e` |
 | Flow / operation records | ✅ | on-chain evidence above |
