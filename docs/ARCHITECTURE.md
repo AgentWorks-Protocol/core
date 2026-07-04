@@ -40,7 +40,7 @@ The full literal policies + the demonstrated denial/freeze/review are in **[RISK
 │  Dashboard /web   │   │  Agent service (cloud)   │ ────────▶ │   CAW cloud API      │
 │  (Vercel)         │   │  FastAPI + autonomous    │  contract │ (Pact enforcement,   │
 │  New job · Market │   │  loops · NO key material │  _call /  │  routes signing)     │
-│  Proofs · Flow    │   │  (Railway)               │  pact     └──────────┬───────────┘
+│  Proofs · Flow    │   │  (DO droplet)            │  pact     └──────────┬───────────┘
 └───────────────────┘   └──────────────────────────┘                     │ websocket (relay)
         │                          │ reads chain (web3)                   ▼
         │ reads chain (viem)       ▼                          ┌──────────────────────────┐
