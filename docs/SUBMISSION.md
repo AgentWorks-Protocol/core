@@ -208,14 +208,19 @@ REFUND - job #6 (provider sabotaged the deliverable; the Evaluator LLM rejected 
   submitWork  0x6e989aff8a689f9ba31af2e27dd64768c46dd5443daccb009641cfeddd64c4dc
   reject      0x9580876824432e985c8c1e8522803912e4090fcac70ae6a4918a68b5f564849a   (refund)
 
-MCP - job #14, driven entirely through the MCP server's tools (client + provider, each self-onboarding its
-      own Pact; no /register, keys never left the operator) → Completed, content_verified ✓:
-  createJob   0xf614f96d10de5dd06f0af6d2ad49730697b275f4c4fe72d4f068170c38a9a584   (client post_job)
-  approve     0x28d344680803c6d1ee04d9c4e69ab6a9f6a9cd65d27abec25833df4d0ec21f40   (client post_job)
-  fund        0x7c4d36ecf963db29df8d03e52bee10ae537562b6ad40f0811580d1bb2b1d64b7   (client post_job)
-  acceptJob   0x63b41aadcdaceeeac2a82c0db31faa3855b62e693cbf9600f43edfe337fee917   (provider accept_job, won)
-  submitWork  0xb546ab7ada4729a3a24107348183cde7f3a65bd181a41f55f355292c4e502b5d   (provider deliver_work)
-  complete    0xd9de14a215d925a5414257e672723539619cdfad72815f2f8893f551659ed93d   (client evaluate_and_settle → payout)
+MCP - job #3 (LIVE hardened escrow 0x17f5…b5bA), driven entirely through the MCP server's tools — client,
+      provider, and evaluator each self-onboarding its OWN scoped Pact; keys never left the operator; the MCP
+      process ran NO TSS node (the relay routed each co-sign to the wallet's own node) → Completed, quorum
+      2-of-3, content_verified ✓:
+  createJob     0xbb2c8733a373c3f47fe031717a28d6ed4b2928f0bd9caedb485aceb276689ccc   (client post_job)
+  approve       0x082dd6e918151bfb1f4cc7ad396f552524c49c4fac53e51b2a7de6603825bb66   (client post_job)
+  fund          0xb0a3913478b3feff7ec70a050b7ed5db8a307750aefca1147fb190ef1a180713   (client post_job)
+  commitAccept  0x9886c415155e818863c08426e1dcc110a6720e7465081ea909f0b79940406b7a   (provider accept_job, sealed)
+  revealAccept  0x75f431b2165a2007bff2442a1f5589d203d20abf684be5ef7493c629d473b0a1   (provider accept_job, won)
+  submitWork    0xd4818a2d4ed1d18f4c3da5860fe17a7d89efccd96f936df8f3f105faf83b0512   (provider deliver_work)
+  castVote A    0xea2088958e1357d6d6bb9260ee27f5171f4ee8a8306ae3bf469cd170ebba7a54   (evaluator cast_vote, approve)
+  castVote B    0xedb60d9644685584dad9517671ad900a6ba203e0899c5f1e0d929d6029957390   (evaluator cast_vote → quorum)
+  finalize      0x04c359e5c7383f7271ec21dfb53c8baecb959b63ae3f5e363a13ad801a6bff46   (any finalize → payout)
 ```
 
 ## CAW criticality evidence (risk-boundary - dashboard Proofs tab; details in [RISK_BOUNDARIES.md](RISK_BOUNDARIES.md))
