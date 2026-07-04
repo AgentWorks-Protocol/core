@@ -1,0 +1,69 @@
+{
+  "run_id": "mcp-job3",
+  "job_id": 3,
+  "escrow": "0x17f58B3DcCad608867F19A88499f0F11C5F9b5bA",
+  "driver": "mcp",
+  "txs": {
+    "createJob": "0xbb2c8733a373c3f47fe031717a28d6ed4b2928f0bd9caedb485aceb276689ccc",
+    "approve": "0x082dd6e918151bfb1f4cc7ad396f552524c49c4fac53e51b2a7de6603825bb66",
+    "fund": "0xb0a3913478b3feff7ec70a050b7ed5db8a307750aefca1147fb190ef1a180713",
+    "commitAccept": "0x9886c415155e818863c08426e1dcc110a6720e7465081ea909f0b79940406b7a",
+    "revealAccept": "0x75f431b2165a2007bff2442a1f5589d203d20abf684be5ef7493c629d473b0a1",
+    "submitWork": "0xd4818a2d4ed1d18f4c3da5860fe17a7d89efccd96f936df8f3f105faf83b0512",
+    "finalize": "0x04c359e5c7383f7271ec21dfb53c8baecb959b63ae3f5e363a13ad801a6bff46"
+  },
+  "winner": "Provider (MCP)",
+  "winner_addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+  "provider": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+  "client": "0x6dfbd0ac9feb5bb9a9ffeaf54df203c1633c1ddd",
+  "irys": {
+    "id": "FQP1F3LqDTr93dAKwg6LVeU59FH7XXbBCrD5f3iNhWmN",
+    "url": "https://devnet.irys.xyz/FQP1F3LqDTr93dAKwg6LVeU59FH7XXbBCrD5f3iNhWmN"
+  },
+  "deliverable": "An on-chain escrow smart contract holds the buyer's funds in neutral custody and releases them to the seller only once the agreed conditions are met, so neither party has to trust the other.",
+  "deliverable_hash": "0x33cbebe62f600449b78512108be69a4d042c4a69ff7bc5a9f17448269da09fc0",
+  "committee": [
+    "0x48f2a3749a18684c31e322abef3e8e855c116f06",
+    "0x476b3e5f0a3f445407f1476a33768962b9615f7d",
+    "0x311b7373724ea9db28533b981767a6f08d114a02"
+  ],
+  "committee_votes": {
+    "Evaluator A": {
+      "addr": "0x48f2a3749a18684c31e322abef3e8e855c116f06",
+      "accept": true,
+      "reason": "Approved via MCP cast_vote — the deliverable is one sentence stating the escrow holds funds until conditions are met.",
+      "onchain": true
+    },
+    "Evaluator B": {
+      "addr": "0x476b3e5f0a3f445407f1476a33768962b9615f7d",
+      "accept": true,
+      "reason": "Approved via MCP cast_vote — meets the criteria; reaches quorum 2-of-3.",
+      "onchain": true
+    }
+  },
+  "vote_txs": {
+    "Evaluator A": "0xea2088958e1357d6d6bb9260ee27f5171f4ee8a8306ae3bf469cd170ebba7a54",
+    "Evaluator B": "0xedb60d9644685584dad9517671ad900a6ba203e0899c5f1e0d929d6029957390"
+  },
+  "tentative": "payout",
+  "verdict": {
+    "accept": true,
+    "reason": "committee 2-0 (quorum 2) — cast through the MCP evaluator tool"
+  },
+  "branch": "payout",
+  "status": "settled",
+  "task": "In one clear sentence, explain what an on-chain escrow smart contract does.",
+  "criteria": "One sentence; says funds are held by the contract until agreed conditions are met.",
+  "amount_usdc": 1.0,
+  "spec_hash": "0x3e1c2553c4fad78bb5cb3ec8fe0327488c66924793abf484aa245d51e81a0378",
+  "quorum": 2,
+  "commits": {
+    "Provider (MCP)": {
+      "addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+      "tx": "0x9886c415155e818863c08426e1dcc110a6720e7465081ea909f0b79940406b7a"
+    }
+  },
+  "final_status": "Completed",
+  "content_verified": true,
+  "note": "Open-marketplace job driven END-TO-END through the AgentWorks MCP tools (the open agent socket): client post_job -> provider sealed accept_job (commit-reveal) -> deliver_work -> committee cast_vote x2 -> finalize. Each action was signed through the operator's OWN Pact-scoped CAW wallet via the CAW relay; the local MCP process ran NO TSS node. Demonstrates that any external MCP-capable agent participates with its own wallet, on the hardened v4 escrow."
+}

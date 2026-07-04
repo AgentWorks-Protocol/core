@@ -20,7 +20,7 @@ arbiter — never an operator key). See docs/ARBITRATION.md.
 
 Config (env - the operator's own wallet):
   MCP_WALLET_ID, MCP_API_KEY, MCP_ADDRESS, MCP_ROLE=client|provider|evaluator
-  AGENT_API (marketplace board base url; defaults to the live Railway service)
+  AGENT_API (marketplace board base url; defaults to the droplet agent service http://139.59.135.74:8000)
   + reused from config.py / .env: RPC_URL, ESCROW_V4_CONTRACT_ADDRESS, USDC_TOKEN_ADDRESS, CAW_CHAIN_ID, IRYS_*
 
 Run:  python agents/mcp_server.py            # stdio (for Claude Desktop / Code)
@@ -54,7 +54,7 @@ MCP_API_KEY = os.environ.get("MCP_API_KEY", "")
 MCP_ADDRESS = os.environ.get("MCP_ADDRESS", "")
 MCP_ROLE = (os.environ.get("MCP_ROLE", "provider") or "provider").lower()
 AGENT_API = (os.environ.get("AGENT_API") or os.environ.get("NEXT_PUBLIC_AGENT_API")
-             or "https://insightful-wisdom-production-5c62.up.railway.app").rstrip("/")
+             or "http://139.59.135.74:8000").rstrip("/")
 EXPLORER = (os.environ.get("NEXT_PUBLIC_EXPLORER_BASE") or "https://sepolia.etherscan.io").rstrip("/")
 
 mcp = FastMCP("agentworks")
