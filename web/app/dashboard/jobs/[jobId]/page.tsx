@@ -9,6 +9,27 @@ import type { AgentRun } from "../../../../lib/agent";
 
 export const dynamic = "force-dynamic";
 
+/** Fetch the live backend run for a job id, server-side, so the detail page resolves a job with the SAME
+ *  precedence the Marketplace board uses (board client-merges /runs with "live wins"). Without this the
+ *  board could show the live-escrow job #N while the detail page re-read a stale bundled snapshot for the
+ *  same id — job ids repeat across escrow generations, so the two would diverge. Runs directly against the
+ *  agent service (server-side has no mixed-content constraint); degrades to null so the local snapshot + a
+ *  chain read still resolve the job if the backend is asleep. */
+async function fetchLiveRun(jobId: number): Promise<AgentRun | null> {
+  if (!CFG.agentApi) return null;
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 6000);
+    const r = await fetch(`${CFG.agentApi}/runs`, { signal: ctl.signal, cache: "no-store" });
+    clearTimeout(t);
+    if (!r.ok) return null;
+    const runs = (await r.json()) as AgentRun[];
+    return runs.find((x) => x.job_id === jobId) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 const STEP_DEFS: { key: string; ti: string }[] = [
   { key: "createJob", ti: "Job created (open, no provider)" },
   { key: "approve", ti: "USDC approved" },
@@ -31,9 +52,10 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
   const jobId = Number(jobIdStr);
   if (!Number.isFinite(jobId)) notFound();
 
-  // Prefer the verified autonomous-run artifact (rich: decisions + race + every tx); fall back to a
-  // minimal on-chain v2 view so any escrow still resolves.
-  const run = findMarketRun(jobId) as AgentRun | null;
+  // Resolve the run with the board's precedence: the live backend /runs first (so clicking a card always
+  // opens the SAME job the card showed — ids repeat across escrow generations), then the bundled snapshot,
+  // then a minimal on-chain view so any escrow still resolves.
+  const run = ((await fetchLiveRun(jobId)) ?? findMarketRun(jobId)) as AgentRun | null;
   const live = await liveJobV2(jobId);
   if (!run && !live) notFound();
 
