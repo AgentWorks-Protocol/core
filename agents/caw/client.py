@@ -22,12 +22,42 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 from typing import Any
 
 from cobo_agentic_wallet.client import WalletAPIClient
 
 log = logging.getLogger("caw")
+
+# Secret-bearing field names that must NEVER be logged (CLAUDE.md §4). The pact-scoped api_key an
+# ACTIVE pact carries (see scoped()) is the critical one: get_pact / wait_pact_active return it on
+# every poll, so an un-redacted _call log would write a live, constrained signing credential to the
+# log sink. Normalized to lower-case with '-' -> '_' before matching.
+_SECRET_KEYS = {
+    "api_key", "apikey", "mnemonic", "private_key", "privatekey", "invitation_code",
+    "invitationcode", "secret", "seed", "key_share", "keyshare", "password", "passwd",
+}
+_REDACTED = "***REDACTED***"
+# Belt-and-suspenders: scrub secrets that survive as `"api_key": "..."` inside a stringified object
+# (e.g. when the SDK returns a non-dict that json.dumps renders via default=str).
+_SECRET_STR_RE = re.compile(
+    r"(?i)(\"?(?:api[_-]?key|mnemonic|private[_-]?key|invitation[_-]?code|secret|seed|"
+    r"key[_-]?share|passwd|password)\"?\s*[:=]\s*)(\"[^\"]*\"|'[^']*'|[^\s,}\]]+)"
+)
+
+
+def _redact(obj: Any) -> Any:
+    """Deep copy of `obj` with any secret-bearing keys masked, so credentials never reach logs/errors."""
+    if isinstance(obj, dict):
+        return {
+            k: (_REDACTED if isinstance(k, str) and k.lower().replace("-", "_") in _SECRET_KEYS
+                else _redact(v))
+            for k, v in obj.items()
+        }
+    if isinstance(obj, (list, tuple)):
+        return [_redact(v) for v in obj]
+    return obj
 
 # Terminal (non-active) pact statuses.
 _PACT_TERMINAL = {"rejected", "expired", "revoked", "completed"}
@@ -41,9 +71,10 @@ _TX_STATUS_NUM_FAILED = {800, 1000}  # best-effort; status_display/sub_status ar
 
 def _short(obj: Any, n: int = 800) -> str:
     try:
-        s = json.dumps(obj, default=str, ensure_ascii=False)
+        s = json.dumps(_redact(obj), default=str, ensure_ascii=False)
     except Exception:
         s = str(obj)
+    s = _SECRET_STR_RE.sub(r"\1" + _REDACTED, s)
     return s if len(s) <= n else s[:n] + "…"
 
 

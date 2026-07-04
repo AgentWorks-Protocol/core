@@ -93,7 +93,8 @@ Even with a valid Pact, the **contract** constrains where funds can go:
   exposed to. The narrow residual (a bot that *speculatively pre-committed* could still race the reveal) is
   mitigated by routing the reveal through a private mempool — defense-in-depth, see **[MEV.md](MEV.md)**.
   Proven by Foundry (`test_revealAccept_copiedCommitmentByOtherSenderFails`,
-  `test_revealAccept_twoValidCommits_firstRevealWins`) and live (Provider B's `revealAccept` reverted).
+  `test_revealAccept_twoValidCommits_firstRevealWins`) and live (Provider A's `revealAccept` reverted —
+  Provider B won the sealed race and was paid; see `docs/SUBMISSION.md`).
 - **Deadline backstop:** if a funded job is never claimed/submitted (or settlement stalls past the
   deadline), the Client reclaims via **`claimRefund`** → `Refunded`. Outstanding commitments are inert and
   never block the refund. Funds are never strandable.

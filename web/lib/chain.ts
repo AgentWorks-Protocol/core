@@ -114,11 +114,13 @@ export interface LiveJobV2 {
   irysId: string;
   client: string;
   provider: string;
+  escrow: `0x${string}`; // which of the two v4 escrows this job state was read from
 }
 
 export interface SettlementV2 {
   outcome: "payout" | "refund";
   txHash: `0x${string}`;
+  escrow: `0x${string}`; // which of the two v4 escrows this settlement came from
 }
 
 // The two identical-bytecode v4 deployments the dashboard resolves against: the live escrow first, then the
@@ -130,9 +132,18 @@ const V4_ESCROWS: { address: `0x${string}`; fromBlock: bigint }[] = [
 ];
 
 /** Recover a job's settlement (which tx settled it + the outcome) from chain events, for jobs that have no
- *  run artifact. Scans both v4 escrows (live first). Best-effort: null if unreachable/unsupported/unsettled. */
-export async function settlementV2(jobId: number): Promise<SettlementV2 | null> {
-  for (const esc of V4_ESCROWS) {
+ *  run artifact. Scans both v4 escrows (live first). Best-effort: null if unreachable/unsupported/unsettled.
+ *  Pass `preferEscrow` to constrain the scan to the SAME escrow whose job state is being displayed, so a
+ *  job-id collision across the two identical-bytecode escrows can't pair one job's status with another
+ *  job's settlement tx. */
+export async function settlementV2(
+  jobId: number,
+  preferEscrow?: `0x${string}`,
+): Promise<SettlementV2 | null> {
+  const escrows = preferEscrow
+    ? V4_ESCROWS.filter((e) => e.address.toLowerCase() === preferEscrow.toLowerCase())
+    : V4_ESCROWS;
+  for (const esc of escrows) {
     const scan = (eventName: "JobCompleted" | "JobRejected" | "RefundClaimed") =>
       safe(
         client.getContractEvents({
@@ -152,7 +163,7 @@ export async function settlementV2(jobId: number): Promise<SettlementV2 | null> 
         : refunded?.[0]
           ? { outcome: "refund" as const, log: refunded[0] }
           : null;
-    if (hit?.log?.transactionHash) return { outcome: hit.outcome, txHash: hit.log.transactionHash };
+    if (hit?.log?.transactionHash) return { outcome: hit.outcome, txHash: hit.log.transactionHash, escrow: esc.address };
   }
   return null;
 }
@@ -172,6 +183,7 @@ export async function liveJobV2(jobId: number): Promise<LiveJobV2 | null> {
       irysId: job.irysId,
       client: job.client,
       provider: job.provider,
+      escrow: esc.address,
     };
   }
   return null;
@@ -204,29 +216,46 @@ export async function committeeV4(jobId: number): Promise<CommitteeInfo | null> 
   };
 }
 
-/** Every job on the marketplace (v4) escrow (newest first). Null if the RPC is unreachable. */
+/** Every job across BOTH v4 escrows (newest first), so the board is a complete ledger including jobs that
+ *  settled only on the previous escrow. Ids repeat across the two identical-bytecode escrows, so we prefer
+ *  the LIVE escrow on a collision (matching liveJobV2). Null if the RPC is unreachable. */
 export async function listJobsV2(max = 40): Promise<ChainJob[] | null> {
-  const n = await nextJobIdV2();
-  if (n === null) return null;
-  const ids: number[] = [];
-  for (let i = Math.max(1, n - max); i < n; i++) ids.push(i);
-  const rows = await Promise.all(
-    ids.map(async (id) => {
-      const j = await safe(
-        client.readContract({ address: CFG.escrowV4, abi: escrowAbiV4, functionName: "getJob", args: [BigInt(id)] }),
+  const perEscrow = await Promise.all(
+    V4_ESCROWS.map(async (esc) => {
+      const n = await safe(
+        client.readContract({ address: esc.address, abi: escrowAbiV4, functionName: "nextJobId" }),
       );
-      if (!j) return null;
-      const job = j as { client: string; provider: string; amount: bigint; irysId: string; status: number };
-      return {
-        jobId: id,
-        amountUsdc: Number(formatUnits(job.amount, 6)),
-        statusLabel: STATUS_LABELS_V4[job.status] ?? "Unknown",
-        badge: STATUS_BADGE_V2[job.status] ?? "open",
-        irysId: job.irysId,
-        client: job.client,
-        provider: job.provider,
-      } as ChainJob;
+      if (n === null) return null;
+      const last = Number(n as bigint);
+      const ids: number[] = [];
+      for (let i = Math.max(1, last - max); i < last; i++) ids.push(i);
+      const rows = await Promise.all(
+        ids.map(async (id) => {
+          const j = await safe(
+            client.readContract({ address: esc.address, abi: escrowAbiV4, functionName: "getJob", args: [BigInt(id)] }),
+          );
+          if (!j) return null;
+          const job = j as { client: string; provider: string; amount: bigint; irysId: string; status: number };
+          return {
+            jobId: id,
+            amountUsdc: Number(formatUnits(job.amount, 6)),
+            statusLabel: STATUS_LABELS_V4[job.status] ?? "Unknown",
+            badge: STATUS_BADGE_V2[job.status] ?? "open",
+            irysId: job.irysId,
+            client: job.client,
+            provider: job.provider,
+          } as ChainJob;
+        }),
+      );
+      return rows.filter((r): r is ChainJob => r !== null);
     }),
   );
-  return rows.filter((r): r is ChainJob => r !== null).reverse();
+  if (perEscrow.every((r) => r === null)) return null; // RPC unreachable for both
+  // Merge, preferring the live escrow (V4_ESCROWS[0], processed first) on an id collision.
+  const byId = new Map<number, ChainJob>();
+  for (const rows of perEscrow) {
+    if (!rows) continue;
+    for (const row of rows) if (!byId.has(row.jobId)) byId.set(row.jobId, row);
+  }
+  return [...byId.values()].sort((a, b) => b.jobId - a.jobId);
 }

@@ -51,8 +51,9 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
   // The settling tx from the artifact: v4 finalize/claimRefund, or legacy v2/v3 complete/reject.
   const artifactSettleTx = run?.txs?.complete || run?.txs?.reject || run?.txs?.finalize || run?.txs?.claimRefund || run?.txs?.settle;
   // For jobs whose artifact has no settlement yet (or no artifact at all, e.g. MCP-settled), recover the
-  // settling tx + outcome from chain events across both v4 escrows.
-  const chainSettle = !artifactSettleTx ? await settlementV2(jobId) : null;
+  // settling tx + outcome from chain events — constrained to the SAME escrow the live status was read from,
+  // so a job-id collision across the two v4 escrows can't show one job's status with another's settlement.
+  const chainSettle = !artifactSettleTx ? await settlementV2(jobId, live?.escrow) : null;
   const settleTx = artifactSettleTx || chainSettle?.txHash || "";
   // Outcome: prefer the artifact's branch, else derive from the on-chain status (Completed→payout, Rejected/Refunded→refund).
   const settled = statusLabel === "Completed" ? "payout" : statusLabel === "Rejected" || statusLabel === "Refunded" ? "refund" : null;

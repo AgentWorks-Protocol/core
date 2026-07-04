@@ -46,11 +46,29 @@ app.add_middleware(
 _TOKEN = os.environ.get("AGENT_TRIGGER_TOKEN", "")  # if set, /trigger requires it
 _REGISTER_TOKEN = os.environ.get("AGENT_REGISTER_TOKEN", "")  # if set, /marketplace/register requires it
 
+if not _TOKEN:
+    log.warning("AGENT_TRIGGER_TOKEN is not set — POST /trigger is OPEN to anyone and drives the "
+                "TSS-signing wallets. Set it before exposing this service publicly.")
+
+# Bounds on caller-supplied text so an anonymous request can't bloat the board / platform Irys account.
+_MAX_TASK_LEN = 2000
+_MAX_CRITERIA_LEN = 2000
+_MAX_DELIVERABLE_LEN = 100_000  # 100 KB cap on platform-funded Irys uploads
+
 
 def _require_token(authorization: str, token: str) -> None:
     """Bearer-token gate. Open when `token` is empty; else require `Authorization: Bearer <token>`."""
     if token and authorization != f"Bearer {token}":
         raise HTTPException(status_code=401, detail="missing/invalid bearer token")
+
+
+def _spec_hash(task: str, criteria: str, job_id: int) -> "bytes":
+    """Canonical job spec-hash = keccak256("<spec>#<jobId>"). Must stay identical to the expression a
+    client funds with (marketplace_post_calldata) so marketplace_post_job can re-derive it and bind a
+    listing to the job that was actually funded on-chain."""
+    from web3 import Web3
+    spec = f"{task}\n\nAcceptance criteria: {criteria}".strip() if criteria else task
+    return Web3.keccak(text=f"{spec}#{job_id}")
 
 
 def _seed_data_dir() -> None:
@@ -267,8 +285,7 @@ def marketplace_post_calldata(client_address: str, amount_usdc: float, task: str
         job_id = esc.next_job_id(w3)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"chain read failed: {e}")
-    spec = f"{task}\n\nAcceptance criteria: {criteria}".strip() if criteria else task
-    spec_hash_b = Web3.keccak(text=f"{spec}#{job_id}")
+    spec_hash_b = _spec_hash(task, criteria, job_id)
     amt = int(round(amount_usdc * 1_000_000))
     deadline = int(time.time()) + max(1, deadline_days) * 24 * 3600
     return {
@@ -306,8 +323,13 @@ class PostJobBody(BaseModel):
 @app.post("/marketplace/jobs")
 def marketplace_post_job(body: PostJobBody) -> dict:
     """Publish the human-readable listing for an already-funded on-chain job so providers can discover the
-    task text (only specHash lives on-chain). The job must be Funded + unclaimed (verified on-chain)."""
+    task text (only specHash lives on-chain). The job must be Funded + unclaimed (verified on-chain), and
+    the posted task/criteria MUST reproduce the job's on-chain specHash — so an anonymous caller cannot
+    poison the board (prompt-inject providers, misstate the reward) for a job it did not fund."""
     import escrow_v4 as esc
+    from web3 import Web3
+    if len(body.task) > _MAX_TASK_LEN or len(body.criteria) > _MAX_CRITERIA_LEN:
+        raise HTTPException(status_code=413, detail="task/criteria exceed the length limit")
     w3 = esc.web3()
     try:
         job = esc.get_job(w3, body.job_id)
@@ -317,7 +339,13 @@ def marketplace_post_job(body: PostJobBody) -> dict:
         raise HTTPException(status_code=400, detail=f"job {body.job_id} is not Funded (status: {job['status']})")
     if int(job["provider"], 16) != 0:
         raise HTTPException(status_code=400, detail=f"job {body.job_id} already has a provider")
-    reward = body.reward_usdc if body.reward_usdc is not None else job["amount"] / 1_000_000
+    # Bind the listing to what was funded: only the exact spec the client committed on-chain can be posted.
+    expected = Web3.to_hex(_spec_hash(body.task, body.criteria, body.job_id))
+    if expected.lower() != str(job["spec_hash"]).lower():
+        raise HTTPException(status_code=403, detail="task/criteria do not match the job's on-chain "
+                            "specHash (only the funded spec can be listed)")
+    # The reward shown to providers is always the on-chain escrow amount — never a caller-supplied number.
+    reward = job["amount"] / 1_000_000
     autonomous._post_listing(body.job_id, task=body.task, criteria=body.criteria, reward_usdc=reward,
                              spec_hash=job["spec_hash"], client=job["client"], deadline=job["deadline"])
     return {"posted": True, **_listing_view(body.job_id, job, autonomous._listing(body.job_id))}
@@ -343,6 +371,8 @@ def marketplace_deliver(job_id: int, body: DeliverBody) -> dict:
         raise HTTPException(status_code=400, detail=f"job {job_id} is not Accepted (status: {job['status']})")
     if not body.deliverable.strip():
         raise HTTPException(status_code=400, detail="deliverable is empty")
+    if len(body.deliverable) > _MAX_DELIVERABLE_LEN:
+        raise HTTPException(status_code=413, detail="deliverable exceeds the size limit")
     dhash = Web3.keccak(text=body.deliverable)
     try:
         irys = irys_store.upload(body.deliverable,
@@ -499,6 +529,22 @@ def marketplace_finalize_calldata(job_id: int) -> dict:
         "function": "finalize(uint256)",
         "calldata": esc.finalize(job_id),
         "note": "callable by anyone after the dispute window; settles per the committee vote.",
+    }
+
+
+@app.get("/marketplace/jobs/{job_id}/refund-calldata")
+def marketplace_refund_calldata(job_id: int) -> dict:
+    """Build the claimRefund calldata the CLIENT signs to reclaim escrow on a job that stalled before
+    settlement (Funded but never accepted, or Accepted/Submitted but never resolved) once its deadline has
+    passed. The deadline anti-freeze exit — finalize/resolveTimeout only cover Resolved/Disputed."""
+    import escrow_v4 as esc
+    return {
+        "job_id": job_id,
+        "contract_address": config.ESCROW_V4_ADDRESS,
+        "chain_id": config.CHAIN_ID,
+        "function": "claimRefund(uint256)",
+        "calldata": esc.claim_refund(job_id),
+        "note": "callable by the client after the deadline for a Funded/Accepted/Submitted job; refunds the escrow.",
     }
 
 

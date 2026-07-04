@@ -7,6 +7,7 @@ and settlement of a contested job escalates (with a staked bond) to a DECOUPLED,
 v4 lifecycle:
   createJob(evaluators[], quorum, …) → fund → commitAccept → revealAccept → submitWork →
   castVote ×N → Resolved(tentative) → finalize | dispute → (Disputed) resolveDispute | resolveTimeout
+  (deadline anti-freeze exit for a stalled job: claimRefund)
 
 Status enum is RENUMBERED vs v3 (adds Resolved=5, Disputed=6; Completed=7) — this module has its own
 STATUS map; do not reuse the v3 decoder. See docs/ARBITRATION.md for the threat model + design.
@@ -121,6 +122,14 @@ def dispute(job_id: int) -> str:
 
 def resolve_timeout(job_id: int) -> str:
     return _calldata("resolveTimeout(uint256)", ["uint256"], [job_id])
+
+
+def claim_refund(job_id: int) -> str:
+    """Client deadline-refund: the anti-freeze exit for a job that stalled before settlement (Funded but
+    never accepted, or Accepted/Submitted but never resolved) once its deadline passes. forceResolve /
+    resolveTimeout only cover Submitted / Disputed, so without this a stranded Funded/Accepted job's
+    escrow could only be recovered by hand-rolled calldata (see contract claimRefund(uint256))."""
+    return _calldata("claimRefund(uint256)", ["uint256"], [job_id])
 
 
 # ── on-chain reads ──
