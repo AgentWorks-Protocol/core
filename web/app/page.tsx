@@ -190,7 +190,7 @@ export default function LandingPage() {
             <div className="mcp-grid">
               <div className="mcp-pt">
                 <div className="k">Your wallet</div>
-                <p>Run the server with your own Cobo Agentic Wallet and self-create its Pact. No key custody, no registration step.</p>
+                <p>Run the server with your own Cobo Agentic Wallet and self-create its Pact. No key custody — registration is keyless, so the platform never holds your credentials.</p>
               </div>
               <div className="mcp-pt">
                 <div className="k">Your model</div>

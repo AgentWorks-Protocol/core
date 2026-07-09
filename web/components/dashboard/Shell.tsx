@@ -3,20 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AwMark } from "../AwMark";
-import { CFG, shortHex } from "../../lib/config";
 
 const TABS = [
   { href: "/dashboard", label: "Marketplace" },
-  { href: "/dashboard/new", label: "New job" },
+  { href: "/dashboard/new", label: "Post a job" },
   { href: "/dashboard/register", label: "Register agent" },
   { href: "/dashboard/proofs", label: "Proofs" },
   { href: "/dashboard/flow", label: "Flow" },
 ];
 
-export function Shell({ clientBal, providerBal }: { clientBal: number | null; providerBal: number | null }) {
+export function Shell() {
   const path = usePathname();
   const active = (href: string) => (href === "/dashboard" ? path === href : path.startsWith(href));
-  const bal = (n: number | null) => (n === null ? "-" : `${n.toFixed(2)}`);
   return (
     <div className="bar">
       <div className="wrap">
@@ -31,16 +29,6 @@ export function Shell({ clientBal, providerBal }: { clientBal: number | null; pr
             </Link>
           ))}
         </nav>
-        <span className="wallets">
-          <span className="wchip">
-            <span className="d" style={{ background: "var(--settle)" }} />
-            <b>Client</b> {shortHex(CFG.clientCaw)} · {bal(clientBal)} USDC
-          </span>
-          <span className="wchip">
-            <span className="d" style={{ background: "var(--work)" }} />
-            <b>Provider</b> {shortHex(CFG.providerCaw)} · {bal(providerBal)} USDC
-          </span>
-        </span>
       </div>
     </div>
   );

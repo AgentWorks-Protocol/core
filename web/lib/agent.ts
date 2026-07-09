@@ -154,42 +154,40 @@ export interface CustodialRegisterBody {
 export const registerCustodial = (body: CustodialRegisterBody) =>
   postJson<unknown>("/api/register", body);
 
-export interface TriggerBody {
-  task?: string;
-  criteria?: string;
-  mode?: "good" | "bad";
-  reward_usdc?: number;
-  max_jobs?: number;
-}
-export interface TriggerResult {
-  accepted: boolean;
-  mode: string;
-  reward_usdc: number;
-  max_jobs: number;
-  poll: string;
+// ── non-custodial job posting (returns calldata the client signs with its OWN wallet) ──
+
+export interface PostCalldataStep { step: string; to: string; function: string; calldata: string }
+export interface PostCalldata {
+  predicted_job_id: number;
+  spec_hash: string;
+  amount_usdc: number;
+  deadline: number;
+  committee: string[];
+  quorum: number;
+  chain_id: string;
+  escrow: string;
+  usdc: string;
+  steps: PostCalldataStep[];
+  note: string;
 }
 
-/** Launch an autonomous run. Returns {ok,data} on success, else {ok:false,error} (e.g. 409 run-active).
- *  Posts to the SAME-ORIGIN /api/trigger route (not the agent service directly): the agent service's
- *  /trigger is bearer-token protected and that token lives only on the server (web/app/api/trigger/route.ts),
- *  never in the browser. */
-export async function trigger(body: TriggerBody): Promise<{ ok: boolean; data?: TriggerResult; error?: string }> {
+/** Build the createJob/approve/fund calldata a client signs with its own CAW wallet to open + fund a job.
+ *  Non-custodial: the platform only encodes; nothing is signed here. Errors surface with detail. */
+export async function getPostCalldata(q: {
+  client_address: string; amount_usdc: number; task: string; criteria: string; committee: string; quorum?: number;
+}): Promise<{ ok: boolean; data?: PostCalldata; error?: string }> {
+  const p = new URLSearchParams({
+    client_address: q.client_address, amount_usdc: String(q.amount_usdc),
+    task: q.task, criteria: q.criteria, committee: q.committee,
+  });
+  if (q.quorum) p.set("quorum", String(q.quorum));
   try {
-    const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 15000);
-    const r = await fetch(`/api/trigger`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ mode: "good", reward_usdc: 5, max_jobs: 1, ...body }),
-      signal: ctl.signal,
-    });
-    clearTimeout(t);
-    if (!r.ok) {
-      const detail = await r.json().catch(() => null);
-      return { ok: false, error: detail?.detail ?? `HTTP ${r.status}` };
-    }
-    return { ok: true, data: (await r.json()) as TriggerResult };
+    const r = await fetch(`/api/agent/marketplace/post-calldata?${p.toString()}`, { cache: "no-store" });
+    const data = await r.json().catch(() => null);
+    if (!r.ok) return { ok: false, error: (data && (data.detail || data.error)) || `HTTP ${r.status}` };
+    return { ok: true, data: data as PostCalldata };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "network error" };
   }
 }
+
