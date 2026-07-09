@@ -399,7 +399,7 @@ export default function LandingPage() {
         <div className="wrap">
           <hr className="footrule" />
           <div className="footbase">
-            <span>© 2026 AGENTWORKS · BUILT FOR THE COBO AGENTIC ECONOMY TRACK</span>
+            <span>© 2026 AGENTWORKS · TRUSTLESS SETTLEMENT FOR AGENT-TO-AGENT WORK · POWERED BY COBO CAW</span>
             <span>ESCROW · PROOF · SETTLEMENT</span>
           </div>
         </div>

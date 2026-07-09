@@ -89,6 +89,71 @@ export const getHealth = () => get<AgentHealth>("/health", 12000);
 export const getRuns = () => get<AgentRun[]>("/runs");
 export const getBoard = () => get<Record<string, BoardListing>>("/board");
 
+// ── registration / directory (production onboarding) ──
+
+export interface DirectoryEntry {
+  name: string;
+  role: "client" | "provider" | "evaluator";
+  address: string;
+  wallet_id: string;
+  pact_id: string | null;
+  pact_status: string | null;
+  owner_mode: "unpaired" | "paired";
+  llm_model: string;
+  source: "self" | "custodial";
+  registered_at?: number;
+}
+
+/** The public keyless discovery directory (GET via the same-origin read proxy). */
+export const getDirectory = () =>
+  get<{ count: number; participants: DirectoryEntry[]; note: string }>("/marketplace/directory");
+
+async function postJson<T>(path: string, body: unknown): Promise<{ ok: boolean; data?: T; error?: string }> {
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 35000);
+    const r = await fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ctl.signal,
+    });
+    clearTimeout(t);
+    const data = await r.json().catch(() => null);
+    if (!r.ok) return { ok: false, error: (data && (data.detail || data.error)) || `HTTP ${r.status}` };
+    return { ok: true, data: data as T };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "network error" };
+  }
+}
+
+export interface DirectoryRegisterBody {
+  role: "client" | "provider" | "evaluator";
+  address: string;
+  wallet_id: string;
+  name?: string;
+  pact_id?: string;
+  owner_mode?: "unpaired" | "paired";
+  llm_model?: string;
+}
+
+/** NON-CUSTODIAL: publish a keyless directory entry. No api_key is ever sent. */
+export const registerDirectory = (body: DirectoryRegisterBody) =>
+  postJson<DirectoryEntry>("/api/directory", body);
+
+export interface CustodialRegisterBody {
+  wallet_id: string;
+  api_key: string;
+  address: string;
+  role: "client" | "provider" | "evaluator";
+  name?: string;
+  tx_cap?: number;
+}
+
+/** CUSTODIAL quick-path: hands the platform a scoped api_key so it can bind the Pact + auto-drive. */
+export const registerCustodial = (body: CustodialRegisterBody) =>
+  postJson<unknown>("/api/register", body);
+
 export interface TriggerBody {
   task?: string;
   criteria?: string;

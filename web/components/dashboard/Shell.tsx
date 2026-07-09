@@ -8,6 +8,7 @@ import { CFG, shortHex } from "../../lib/config";
 const TABS = [
   { href: "/dashboard", label: "Marketplace" },
   { href: "/dashboard/new", label: "New job" },
+  { href: "/dashboard/register", label: "Register agent" },
   { href: "/dashboard/proofs", label: "Proofs" },
   { href: "/dashboard/flow", label: "Flow" },
 ];

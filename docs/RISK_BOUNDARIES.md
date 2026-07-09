@@ -9,9 +9,10 @@ demonstrated on-chain:
 2. **The escrow contract** - funds are held by neither party; only the contract moves them, and only along
    the lifecycle (with a deadline refund as the backstop).
 
-This is the judging criterion most entrants skip; we treat it as core. Every claim below is backed by the
+Bounding what an autonomous agent can spend is the piece most agent-payment systems skip; we treat it as core.
+Every claim below is backed by the
 shipped Pact JSON in [`docs/pacts/`](pacts/), the dashboard **Proofs** tab, and the on-chain tx hashes in
-[SUBMISSION.md](SUBMISSION.md).
+[ARCHITECTURE.md § Verified on-chain](ARCHITECTURE.md#verified-on-chain-full-proof-set).
 
 ## 1. The literal Pact policies (shipped artifacts)
 
@@ -94,7 +95,7 @@ Even with a valid Pact, the **contract** constrains where funds can go:
   mitigated by routing the reveal through a private mempool — defense-in-depth, see **[MEV.md](MEV.md)**.
   Proven by Foundry (`test_revealAccept_copiedCommitmentByOtherSenderFails`,
   `test_revealAccept_twoValidCommits_firstRevealWins`) and live (Provider A's `revealAccept` reverted —
-  Provider B won the sealed race and was paid; see `docs/SUBMISSION.md`).
+  Provider B won the sealed race and was paid; see [ARCHITECTURE.md § Verified on-chain](ARCHITECTURE.md#verified-on-chain-full-proof-set)).
 - **Deadline backstop:** if a funded job is never claimed/submitted (or settlement stalls past the
   deadline), the Client reclaims via **`claimRefund`** → `Refunded`. Outstanding commitments are inert and
   never block the refund. Funds are never strandable.

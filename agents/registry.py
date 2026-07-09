@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,11 +27,20 @@ import config
 import pacts
 from caw import CawWallet
 
-# External participants' credentials. On a host with ephemeral storage (e.g. Railway), set AGENT_DATA_DIR
-# to a mounted volume so registrations persist across restarts; default is the in-repo path for local dev.
-# Always gitignored (holds api_keys) - never committed.
-_LOCAL_FILE = (Path(os.environ["AGENT_DATA_DIR"]) / "registry.local.json") if os.environ.get("AGENT_DATA_DIR") \
-    else (Path(__file__).resolve().parent / "registry.local.json")
+def _data_dir() -> Path:
+    return Path(os.environ["AGENT_DATA_DIR"]) if os.environ.get("AGENT_DATA_DIR") \
+        else Path(__file__).resolve().parent
+
+
+# External participants' CUSTODIAL credentials (holds api_keys). On a host with ephemeral storage set
+# AGENT_DATA_DIR to a mounted volume so registrations persist across restarts. Always gitignored - never committed.
+_LOCAL_FILE = _data_dir() / "registry.local.json"
+
+# The KEYLESS discovery directory (Phase: production registration). Holds NO api_keys - only non-secret
+# identity + self-reported pact status - so it is COMMIT-SAFE. This is DISCOVERY, not security: enforcement
+# stays with CAW (the Pact) + the escrow (only the contract moves funds). A lying entry can't sign, so it
+# can't do harm. Entries here are SELF-DRIVEN (no key held → the platform never auto-drives them).
+_DIRECTORY_FILE = _data_dir() / "registry.directory.json"
 
 
 @dataclass(frozen=True)
@@ -46,6 +56,17 @@ class Participant:
     llm_api_key: str = ""
     llm_base_url: str = ""
     llm_model: str = ""
+    # Ownership + provenance (non-secret). owner_mode: 'unpaired' (agent-owned, Pact auto-activates) |
+    # 'paired' (human-owned, in-app Cobo approval). source: 'env' | 'custodial' | 'self' (keyless directory).
+    owner_mode: str = "unpaired"
+    source: str = "env"
+
+    @property
+    def is_self_driven(self) -> bool:
+        """A participant with NO api_key is a keyless directory entry: it self-drives (via MCP / the
+        calldata rail) and the platform can NEVER auto-drive it. `bool(api_key)` is the SINGLE predicate
+        that decides auto-drive vs self-drive everywhere in the orchestrator."""
+        return not self.api_key
 
     def llm(self) -> dict:
         """Resolved LLM config for this participant, falling back to the global default (config.LLM_*)."""
@@ -66,7 +87,9 @@ class Participant:
     def public(self) -> dict:
         """Non-secret view (never includes api_key) - safe to log / return over HTTP."""
         return {"name": self.name, "role": self.role, "wallet_id": self.wallet_id,
-                "address": self.address}
+                "address": self.address, "owner_mode": self.owner_mode, "source": self.source,
+                "driven": "self" if self.is_self_driven else "auto",
+                "llm_model": self.llm_model}
 
 
 def _from_env(prefix: str, *, name: str, role: str) -> Participant | None:
@@ -92,8 +115,39 @@ def _from_local_file() -> list[Participant]:
                 name=r.get("name", r["address"][:10]), role=r.get("role", "provider"),
                 wallet_id=r["wallet_id"], api_key=r["api_key"], address=r["address"],
                 tx_cap=int(r.get("tx_cap", 0)),
+                owner_mode=r.get("owner_mode", "unpaired"), source="custodial",
             ))
     return out
+
+
+def _read_directory() -> list[dict]:
+    """Raw keyless directory rows (as stored). Never contains api_keys."""
+    if not _DIRECTORY_FILE.exists():
+        return []
+    try:
+        rows = json.loads(_DIRECTORY_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    return rows if isinstance(rows, list) else []
+
+
+def _from_directory_file() -> list[Participant]:
+    """Keyless directory entries as SELF-DRIVEN Participants (api_key='' → never auto-driven)."""
+    out: list[Participant] = []
+    for r in _read_directory():
+        if r.get("wallet_id") and r.get("address"):
+            out.append(Participant(
+                name=r.get("name") or r["address"][:10], role=r.get("role", "provider"),
+                wallet_id=r["wallet_id"], api_key="", address=r["address"],
+                llm_model=r.get("llm_model", ""),
+                owner_mode=r.get("owner_mode", "unpaired"), source="self",
+            ))
+    return out
+
+
+def directory() -> list[dict]:
+    """The public discovery directory for GET /marketplace/directory (records as stored, no secrets)."""
+    return _read_directory()
 
 
 def load_pool() -> list[Participant]:
@@ -128,6 +182,13 @@ def load_pool() -> list[Participant]:
         pool.append(p)
         n += 1
     pool.extend(_from_local_file())
+    # Keyless directory entries (self-driven). Dedupe by address: an env/custodial entry (holds a usable
+    # api_key → auto-drivable) wins over a keyless directory row for the same address.
+    seen = {p.address.lower() for p in pool}
+    for p in _from_directory_file():
+        if p.address.lower() not in seen:
+            pool.append(p)
+            seen.add(p.address.lower())
     return pool
 
 
@@ -164,21 +225,25 @@ def evaluators() -> list[Participant]:
             llm_model=os.environ.get(f"CAW_EVALUATOR_{n}_LLM_MODEL", ""),
         ))
         n += 1
-    if out:
-        return out
-    # legacy fallback: one shared wallet, extra addresses, shared default LLM
-    wid = os.environ.get("CAW_EVALUATOR_WALLET_ID")
-    key = os.environ.get("CAW_EVALUATOR_API_KEY")
-    if not (wid and key):
-        return []
-    n = 1
-    while True:
-        addr = os.environ.get(f"CAW_EVALUATOR_ADDRESS_{n}")
-        if not addr:
-            break
-        out.append(Participant(name=f"Evaluator {chr(64 + n)}", role="evaluator",  # Evaluator A, B, C…
-                               wallet_id=wid, api_key=key, address=addr))
-        n += 1
+    if not out:
+        # legacy fallback: one shared wallet, extra addresses, shared default LLM
+        wid = os.environ.get("CAW_EVALUATOR_WALLET_ID")
+        key = os.environ.get("CAW_EVALUATOR_API_KEY")
+        if wid and key:
+            n = 1
+            while True:
+                addr = os.environ.get(f"CAW_EVALUATOR_ADDRESS_{n}")
+                if not addr:
+                    break
+                out.append(Participant(name=f"Evaluator {chr(64 + n)}", role="evaluator",  # Evaluator A, B, C…
+                                       wallet_id=wid, api_key=key, address=addr))
+                n += 1
+    # merge keyless directory evaluators (self-driven), deduped by address against the env committee
+    seen = {p.address.lower() for p in out}
+    for p in _from_directory_file():
+        if p.role == "evaluator" and p.address.lower() not in seen:
+            out.append(p)
+            seen.add(p.address.lower())
     return out
 
 
@@ -225,18 +290,55 @@ async def onboard(p: Participant, *, clean: bool = True, timeout: float = 120.0)
         }
 
 
+_ROLES = ("client", "provider", "evaluator")
+
+
+def register_directory(*, address: str, wallet_id: str, role: str = "provider",
+                       name: str | None = None, pact_id: str | None = None,
+                       owner_mode: str = "unpaired", llm_model: str = "",
+                       source: str = "self") -> dict:
+    """NON-CUSTODIAL registration: record a KEYLESS discovery entry. Takes NO api_key and binds NO Pact
+    (the platform can't sign for an external agent). The operator self-binds the role's scoped Pact via MCP
+    or the Cobo app, then lists here so others can discover them. Upsert by address. Returns the public row.
+
+    The directory is DISCOVERY, not security: `pact_status` is self-reported (advisory); enforcement stays
+    with CAW (the Pact) + the escrow. A keyless entry that lies can't sign, so it can't move funds.
+    """
+    if role not in _ROLES:
+        raise ValueError(f"role must be one of {_ROLES}, got '{role}'")
+    if owner_mode not in ("unpaired", "paired"):
+        raise ValueError(f"owner_mode must be 'unpaired' or 'paired', got '{owner_mode}'")
+    if not (address and wallet_id):
+        raise ValueError("address and wallet_id are required")
+
+    row = {
+        "name": name or f"ext-{address[:10]}", "role": role, "address": address,
+        "wallet_id": wallet_id, "pact_id": pact_id,
+        "pact_status": "self-reported" if pact_id else "unverified",
+        "owner_mode": owner_mode, "llm_model": llm_model, "source": source,
+        "registered_at": int(time.time()), "last_seen": int(time.time()),
+    }
+    rows = _read_directory()
+    # upsert by address (case-insensitive)
+    rows = [r for r in rows if str(r.get("address", "")).lower() != address.lower()]
+    rows.append(row)
+    _DIRECTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _DIRECTORY_FILE.write_text(json.dumps(rows, indent=2), encoding="utf-8")
+    return row
+
+
 async def register_external(wallet_id: str, api_key: str, address: str,
                             role: str = "provider", name: str | None = None,
                             tx_cap: int = 0) -> dict:
-    """Register an external agent in the marketplace. Creates a scoped Pact via CAW, persists the
-    participant to registry.local.json, and returns a non-secret summary.
+    """CUSTODIAL registration (the labeled quick-path). Creates a scoped Pact via CAW, persists the
+    participant — INCLUDING its api_key — to registry.local.json, and returns a non-secret summary.
 
-    External agents bring their own CAW wallet (wallet_id + api_key). The platform creates a Pact
-    for them using the parameterized template, then they can discover jobs via /marketplace/jobs
-    and call acceptJob directly on-chain with their own CAW wallet.
+    External agents bring their own CAW wallet (wallet_id + api_key). The platform holds that api_key and
+    can auto-drive the wallet; that is why this path is custodial. The trustless path is register_directory
+    (keyless) + the operator self-driving via MCP / the calldata rail.
     """
-    if role not in ("client", "provider"):
-        raise ValueError(f"role must be 'client' or 'provider', got '{role}'")
+    if role not in _ROLES:
+        raise ValueError(f"role must be one of {_ROLES}, got '{role}'")
 
     # Check if already registered (by wallet_id)
     existing = _from_local_file()

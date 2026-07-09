@@ -20,6 +20,7 @@ arbiter — never an operator key). See docs/ARBITRATION.md.
 
 Config (env - the operator's own wallet):
   MCP_WALLET_ID, MCP_API_KEY, MCP_ADDRESS, MCP_ROLE=client|provider|evaluator
+  MCP_PUBLISH_DIRECTORY=1 (opt-in: after onboard, publish a KEYLESS directory entry for discovery; no api_key sent)
   AGENT_API (marketplace board base url; defaults to the droplet agent service http://139.59.135.74:8000)
   + reused from config.py / .env: RPC_URL, ESCROW_V4_CONTRACT_ADDRESS, USDC_TOKEN_ADDRESS, CAW_CHAIN_ID, IRYS_*
 
@@ -76,6 +77,14 @@ def _tx(h: str) -> dict:
 async def _get(path: str) -> Any:
     def _do():
         r = requests.get(f"{AGENT_API}{path}", timeout=30)
+        r.raise_for_status()
+        return r.json()
+    return await asyncio.to_thread(_do)
+
+
+async def _post(path: str, body: dict) -> Any:
+    def _do():
+        r = requests.post(f"{AGENT_API}{path}", json=body, timeout=30)
         r.raise_for_status()
         return r.json()
     return await asyncio.to_thread(_do)
@@ -225,9 +234,21 @@ async def onboard() -> dict:
         "evaluator": "evaluator: escrow-only (castVote), USDC excluded",
         "client": "client: escrow + USDC allowlist, tx-capped",
     }
+    # Opt-in: after self-binding the Pact locally, publish a KEYLESS directory entry so other agents can
+    # discover this one. Only non-secret identity is sent (never the api_key). Best-effort — never blocks onboard.
+    published = False
+    if os.environ.get("MCP_PUBLISH_DIRECTORY", "").lower() in ("1", "true", "yes"):
+        try:
+            await _post("/marketplace/register-directory", {
+                "role": MCP_ROLE, "address": MCP_ADDRESS, "wallet_id": MCP_WALLET_ID,
+                "pact_id": (_pact or {}).get("id"), "owner_mode": "unpaired",
+            })
+            published = True
+        except Exception:
+            published = False
     return {"onboarded": True, "role": MCP_ROLE, "address": MCP_ADDRESS,
             "pact_id": (_pact or {}).get("id"), "pact_status": (_pact or {}).get("status"),
-            "policy": _policies.get(MCP_ROLE, "")}
+            "policy": _policies.get(MCP_ROLE, ""), "directory_published": published}
 
 
 # ── client tools (sign via the operator's wallet) ────────────────────────────

@@ -128,7 +128,7 @@ is the documented drop-in alternative the same seam accepts.
   adapter, `adapter.oo()` == UMA OOv3). **Both settlement paths demonstrated live** — committee→finalize
   payout (job #1 `Completed`) and committee→**staked dispute→UMA→refund** (job #2 `Rejected`, UMA assertion
   `0x26d55b3f…`). The committee itself was then run **through CAW** (job #4: `castVote`s signed by the
-  evaluator wallet under `evaluator_pact`, USDC denied — see §5). Tx hashes in [SUBMISSION.md](SUBMISSION.md).
+  evaluator wallet under `evaluator_pact`, USDC denied — see §5). Tx hashes in [ARCHITECTURE.md § Verified on-chain](ARCHITECTURE.md#verified-on-chain-full-proof-set).
 
 ## 5. The committee through CAW (demonstrated live)
 

@@ -91,8 +91,8 @@ are complementary — neither alone is the whole story.
   `test_revealAccept_twoValidCommits_firstRevealWins`, `test_revealAccept_revertsBeforeDelay` /
   `_revertsAfterWindow`, `test_revealAccept_doubleRevealReverts`,
   `test_commitAccept_doesNotChangeJobState`, `test_claimRefund_worksIfNobodyEverReveals`. 52 V3 tests;
-  70 across the suite.
+  186 across the full suite.
 - **Live (Sepolia):** `AgentWorksEscrowV3` at `0xFAab4d6ff5CBEcD72a4e1B9315662e7846166D69` (verified,
   deploy block 11087195). A hands-off run drove `commitAccept` (both providers, opaque) →
   `revealAccept` (winner) with the **loser's reveal reverting** because the job left `Funded` — the
-  sealed race resolved on-chain. Tx hashes in [STATUS / SUBMISSION](SUBMISSION.md).
+  sealed race resolved on-chain. Tx hashes in [ARCHITECTURE.md § Verified on-chain](ARCHITECTURE.md#verified-on-chain-full-proof-set).

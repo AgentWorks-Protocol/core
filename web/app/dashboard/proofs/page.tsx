@@ -1,13 +1,9 @@
 import { loadBeats, loadPacts } from "../../../lib/proofs";
-import { CFG, addrUrl, txUrl, shortHex } from "../../../lib/config";
+import { CFG, txUrl, shortHex } from "../../../lib/config";
+import { DirectoryPanel } from "../../../components/dashboard/DirectoryPanel";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
-
-const PARTICIPANTS = [
-  { role: "client", name: "Client", addr: CFG.clientCaw, pact: "escrow v2 + USDC allowlist · budget cap" },
-  { role: "provider", name: "Provider", addr: CFG.providerCaw, pact: "escrow v2 allowlist · no USDC" },
-  { role: "provider", name: "ProviderB", addr: CFG.providerCawB, pact: "escrow v2 allowlist · no USDC" },
-];
 
 export default function ProofsPage() {
   const beats = loadBeats();
@@ -24,23 +20,15 @@ export default function ProofsPage() {
         </p>
       </div>
 
-      {/* participants / wallet-onboarding boundary */}
-      <div className="pact-parts">
-        {PARTICIPANTS.map((p) => (
-          <a key={p.name} href={addrUrl(p.addr)} target="_blank" rel="noreferrer" className="pact-part">
-            <span className={`lj-role ${p.role}`}>{p.role}</span>
-            <div className="pp-body">
-              <div className="pp-n">{p.name} <span className="pp-a">{shortHex(p.addr)}</span></div>
-              <div className="pp-p">Pact · {p.pact}</div>
-            </div>
-          </a>
-        ))}
-      </div>
+      {/* participants / wallet-onboarding boundary — LIVE from the registry directory */}
+      <div className="lj-sh" style={{ marginBottom: 10 }}>Registered agents · each bound by a scoped Pact in its own Cobo Agentic Wallet</div>
+      <DirectoryPanel />
       <p className="pact-onboard">
         Each agent is onboarded into its own Cobo Agentic Wallet and bound to a scoped Pact at submit time
         (a pact-scoped API key carries the authority). The provider Pact omits USDC entirely - a provider can
         accept and deliver but can never move escrowed funds; only the escrow contract settles. New participants
-        join by onboarding a wallet and binding the same template Pact - the authority boundary travels with them.
+        join non-custodially via <Link href="/dashboard/register">Register agent</Link> — they bring their own
+        wallet, self-bind the same template Pact, and the authority boundary travels with them.
       </p>
 
       <div className="beats">

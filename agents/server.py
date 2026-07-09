@@ -102,6 +102,34 @@ _seed_data_dir()
 _state: dict = {"active": False, "run_id": None, "started_at": None, "mode": None, "last_error": None}
 _task: asyncio.Task | None = None
 
+# settlement watcher (standing liveness that finalizes/settles EXTERNAL jobs the platform doesn't drive)
+_WATCHER_ENABLED = os.environ.get("SETTLEMENT_WATCHER", "1") != "0"
+_watcher_task: asyncio.Task | None = None
+
+
+@app.on_event("startup")
+async def _start_watcher() -> None:
+    """Launch the settlement watcher so jobs posted+claimed+voted entirely by EXTERNAL agents still settle
+    (finalize is permissionless + outcome-neutral). No-ops without a first-party signer or when disabled."""
+    global _watcher_task
+    if not _WATCHER_ENABLED:
+        log.info("[watcher] disabled (SETTLEMENT_WATCHER=0)")
+        return
+    if not autonomous.has_first_party_signer():
+        log.info("[watcher] no first-party signer; external jobs settle via /marketplace/jobs/{id}/finalize-calldata")
+        return
+    _watcher_task = asyncio.create_task(autonomous.settlement_watcher())
+
+
+@app.on_event("shutdown")
+async def _stop_watcher() -> None:
+    if _watcher_task and not _watcher_task.done():
+        _watcher_task.cancel()
+
+
+def _watcher_active() -> bool:
+    return bool(_watcher_task and not _watcher_task.done())
+
 
 class TriggerBody(BaseModel):
     task: str | None = None
@@ -136,6 +164,7 @@ def health() -> dict:
         "run": {k: _state[k] for k in ("active", "run_id", "mode", "started_at")},
         "trigger_protected": bool(_TOKEN),
         "register_protected": bool(_REGISTER_TOKEN),
+        "watcher": {"enabled": _WATCHER_ENABLED, "active": _watcher_active()},
     }
 
 
@@ -422,11 +451,54 @@ async def marketplace_register(body: RegisterBody, authorization: str = Header(d
             name=body.name,
             tx_cap=body.tx_cap,
         )
-        return result
+        return {**result, "custodial": True}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Registration failed: {type(e).__name__}: {e}")
+
+
+class DirectoryBody(BaseModel):
+    address: str
+    wallet_id: str
+    role: str = "provider"          # client | provider | evaluator
+    name: str | None = None
+    pact_id: str | None = None
+    owner_mode: str = "unpaired"    # unpaired (agent-owned) | paired (human-owned, Cobo-app approval)
+    llm_model: str = ""
+
+
+@app.post("/marketplace/register-directory")
+def marketplace_register_directory(body: DirectoryBody, authorization: str = Header(default="")) -> dict:
+    """NON-CUSTODIAL registration (the trustless path). Records a KEYLESS discovery entry — no api_key is
+    ever accepted or stored, and the platform binds NO Pact (it can't sign for an external agent). The
+    operator self-binds the role's scoped Pact via MCP or the Cobo app, then lists here so others can
+    discover them. The directory is DISCOVERY, not security: pact_status is self-reported; enforcement
+    stays with CAW (the Pact) + the escrow. Gate with AGENT_REGISTER_TOKEN for a curated pool.
+    """
+    _require_token(authorization, _REGISTER_TOKEN)
+    try:
+        row = registry.register_directory(
+            address=body.address, wallet_id=body.wallet_id, role=body.role, name=body.name,
+            pact_id=body.pact_id, owner_mode=body.owner_mode, llm_model=body.llm_model, source="self",
+        )
+        return {"registered": True, "custodial": False, **row}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Directory registration failed: {type(e).__name__}: {e}")
+
+
+@app.get("/marketplace/directory")
+def marketplace_directory() -> dict:
+    """The public discovery directory (keyless — no api_keys). pact_status is self-reported; enforcement
+    is CAW + the escrow, so a lying entry can't sign or move funds."""
+    d = registry.directory()
+    return {
+        "count": len(d),
+        "participants": d,
+        "note": "pact_status is self-reported; discovery only - enforcement is CAW (the Pact) + the escrow.",
+    }
 
 
 @app.get("/marketplace/jobs/{job_id}/calldata")

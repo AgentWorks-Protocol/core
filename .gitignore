@@ -9,6 +9,9 @@ keystore/
 # External marketplace participants' CAW credentials (Phase 6.5 self-service onboarding).
 registry.local.json
 **/registry.local.json
+# Keyless discovery directory — runtime state (commit-safe, but not a repo artifact). Persists on AGENT_DATA_DIR.
+registry.directory.json
+**/registry.directory.json
 # TSS key shares mounted into the signer container (Phase 6.5.4 Option B). NEVER commit.
 keys/
 /keys
@@ -49,7 +52,7 @@ Thumbs.db
 
 keyshares.tgz
 
-# ── Internal working docs (kept local, NOT shipped in the submission) ───
+# ── Internal working docs (kept local, NOT shipped) ───
 CLAUDE.md
 docs/FACTS.md
 docs/STATUS.md
@@ -57,7 +60,6 @@ docs/DEMO_SCRIPT.md
 docs/DEMO_PLAYBOOK.md
 docs/DEMO_CHEATCARD.md
 docs/DEPLOY_AGENTS.md
-docs/ROADMAP_BASE_VIRTUALS.md
 agents/scripts/live_v4_keys.json
 agents/scripts/live_v4_dispute_keys.json
 

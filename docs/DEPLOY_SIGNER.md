@@ -1,7 +1,7 @@
 # Deploying the TSS signer (production, dedicated VPS)
 
 The **TSS signer** is the only component that holds MPC key-share material. The cloud agent service
-(Railway) and the dashboard (Vercel) hold **no keys** — they build calldata and ask the signer, over the
+(DigitalOcean droplet) and the dashboard (Vercel) hold **no keys** — they build calldata and ask the signer, over the
 Cobo relay, to co-sign. This runbook hosts the signer as an always-on daemon on a small VPS.
 
 Why a VPS and not a PaaS build: the signer is a **long-lived stateful daemon** holding a **persistent relay
