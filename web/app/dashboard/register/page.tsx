@@ -232,7 +232,7 @@ export default function RegisterAgentPage() {
           </div>
 
           <div className="lj-section" style={{ marginTop: 22 }}>
-            <div className="lj-sh">Live directory · every participant — platform-operated + registered (discovery only; enforcement is the Pact + escrow)</div>
+            <div className="lj-sh">Live directory · the evaluator committee + registered agents (discovery only; enforcement is the Pact + escrow)</div>
             <DirectoryPanel />
           </div>
         </div>

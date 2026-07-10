@@ -25,10 +25,8 @@ export const CFG = {
   // per-env with NEXT_PUBLIC_AGENT_API.
   agentApi: env("NEXT_PUBLIC_AGENT_API", "http://139.59.135.74:8000").replace(/\/$/, ""),
   usdc: env("NEXT_PUBLIC_USDC_ADDRESS", "0x4C4D1223BcC47E380CF4C37652EaDFe10A9Fd910") as `0x${string}`,
-  clientCaw: env("NEXT_PUBLIC_CLIENT_CAW", "0x6dfbd0ac9feb5bb9a9ffeaf54df203c1633c1ddd") as `0x${string}`,
-  providerCaw: env("NEXT_PUBLIC_PROVIDER_CAW", "0xef9349b3273b1a54faaf701231f499fe0282e643") as `0x${string}`,
-  // 2nd provider address (same Provider wallet, distinct msg.sender) - the live accept-race competitor.
-  providerCawB: env("NEXT_PUBLIC_PROVIDER_CAW_B", "0x7ea0701d657e3427c2bb3bc195e943a81c5fc69e") as `0x${string}`,
+  // NOTE: no hardcoded platform client/provider wallets here — this is an open market. Job pages show the
+  // REAL client/provider from the artifact or the on-chain job tuple; the directory shows registered agents.
   explorer: env("NEXT_PUBLIC_EXPLORER_BASE", "https://sepolia.etherscan.io"),
   irysGateway: env("NEXT_PUBLIC_IRYS_GATEWAY", "https://devnet.irys.xyz"),
 };

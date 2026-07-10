@@ -67,6 +67,9 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
   const badge = run ? runBadge(run) : runBadge({ job_id: jobId, final_status: live!.statusLabel } as AgentRun);
   const title = clean(run?.task) ?? `Escrow job #${jobId}`;
   const provider = run?.provider ?? live?.provider ?? "";
+  // The job's REAL participants, from the artifact or the on-chain job tuple — never a hardcoded platform
+  // wallet (this is an open market; the client/provider are whoever actually funded + claimed this job).
+  const clientAddr = run?.client ?? live?.client ?? "";
   const accepts = Object.entries(run?.accept_decisions ?? {});
   const raced = accepts.length > 1;
   const steps = STEP_DEFS.filter((s) => run?.txs?.[s.key]);
@@ -99,13 +102,13 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
         <div className="agents">
           <div className="agent">
             <div className="role">Client</div>
-            <div className="addr"><span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--settle)" }} /><a href={addrUrl(CFG.clientCaw)} target="_blank" rel="noreferrer">{shortHex(CFG.clientCaw)}</a></div>
+            <div className="addr"><span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--settle)" }} />{clientAddr ? <a href={addrUrl(clientAddr)} target="_blank" rel="noreferrer">{shortHex(clientAddr)}</a> : <span style={{ opacity: 0.5 }}>unknown</span>}</div>
             <div className="pact">Pact · escrow v4 + USDC allowlist</div>
           </div>
           <div className="seam" />
           <div className="agent">
             <div className="role">Provider {run?.winner ? `· ${run.winner}` : ""}</div>
-            <div className="addr"><span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--work)" }} /><a href={addrUrl(provider || CFG.providerCaw)} target="_blank" rel="noreferrer">{shortHex(provider || CFG.providerCaw)}</a></div>
+            <div className="addr"><span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--work)" }} />{provider ? <a href={addrUrl(provider)} target="_blank" rel="noreferrer">{shortHex(provider)}</a> : <span style={{ opacity: 0.5 }}>unclaimed</span>}</div>
             <div className="pact">Pact · escrow v4 allowlist (no USDC)</div>
           </div>
         </div>
