@@ -1,0 +1,57 @@
+{
+  "run_id": "e2f8f1fd32",
+  "job_id": 4,
+  "txs": {
+    "commitAccept": "0x5952dd32b62cba5c2e1bae127639f15617b315ad0d01a845e8e7af575694bd60",
+    "revealAccept": "0x7b7472194b39c57daad18cbdec42ff75a637c40036ecfa73d60b6c3a7c10a8b5",
+    "submitWork": "0x792e57da296314e66ecf788f540800e8753b7bc3f576a166abd7d2a86156588e"
+  },
+  "accept_decisions": {
+    "Provider": {
+      "accept": true,
+      "reason": "This is a simple writing task with clear criteria and a reasonable reward for minimal effort."
+    }
+  },
+  "winner": "Provider",
+  "winner_addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+  "irys": {
+    "id": "HwkniPTfKVoFegBuc73YBJLnwpFG6QpiNct8GJc4ax3N",
+    "url": "https://devnet.irys.xyz/HwkniPTfKVoFegBuc73YBJLnwpFG6QpiNct8GJc4ax3N",
+    "bytes": 145,
+    "price": "1368667165633",
+    "funded": "0"
+  },
+  "deliverable": "A sealed commit-reveal accept race prevents front-running and MEV (Miner Extractable Value) of the accept transaction in an open job marketplace.",
+  "committee": [],
+  "committee_votes": {
+    "Evaluator B": {
+      "addr": "0x78cf963c21268eb384ba24e7c17eb6e5a4b7e5f1",
+      "accept": true,
+      "reason": "The deliverable meets the acceptance criteria by providing a clear sentence that explains the prevention of front-running and MEV of the accept transaction."
+    },
+    "Evaluator A": {
+      "addr": "0x48f2a3749a18684c31e322abef3e8e855c116f06",
+      "accept": true,
+      "reason": "The sentence names front-running and MEV of the accept transaction, satisfying the acceptance criteria."
+    }
+  },
+  "vote_txs": {
+    "Evaluator B": "0x69f15f06822c00d30cedeb69983c9ab0f10c3e24bfe44a6038b29a72b849aa7c",
+    "Evaluator A": "0xab6054ca2c156058be839848d30f273ed8048a676e67538465ee4f049e1b1d6a"
+  },
+  "tentative": null,
+  "verdict": null,
+  "branch": null,
+  "status": "submitted",
+  "task": "In one clear sentence, explain what a sealed commit-reveal accept race prevents in an open job marketplace.",
+  "criteria": "One sentence; names front-running / MEV of the accept.",
+  "amount_usdc": 1.0,
+  "client": "0x6dfbd0ac9feb5bb9a9ffeaf54df203c1633c1ddd",
+  "commits": {
+    "Provider": {
+      "addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
+      "tx": "0x5952dd32b62cba5c2e1bae127639f15617b315ad0d01a845e8e7af575694bd60"
+    }
+  },
+  "provider": "0xef9349b3273b1a54faaf701231f499fe0282e643"
+}

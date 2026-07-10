@@ -69,11 +69,13 @@ def _write_board(board: dict) -> None:
 
 
 def _post_listing(job_id: int, *, task: str, criteria: str, reward_usdc: float,
-                  spec_hash: str, client: str, deadline: int) -> None:
+                  spec_hash: str, client: str, deadline: int, salt: str = "",
+                  spec_irys_id: str = "") -> None:
     board = _read_board()
     board[str(job_id)] = {
         "job_id": job_id, "task": task, "criteria": criteria, "reward_usdc": reward_usdc,
         "spec_hash": spec_hash, "client": client, "deadline": deadline, "posted_at": int(time.time()),
+        "salt": salt, "spec_irys_id": spec_irys_id,
     }
     _write_board(board)
 
@@ -85,6 +87,40 @@ def _listing(job_id: int) -> dict | None:
 def _spec_text(listing: dict) -> str:
     crit = (listing.get("criteria") or "").strip()
     return f"{listing['task']}\n\nAcceptance criteria: {crit}" if crit else listing["task"]
+
+
+def _spec_for(job_id: int, job: dict) -> str | None:
+    """The task text for a CHAIN-discovered job. Primary source is this operator's board listing; if that's
+    missing the text but recorded a `spec_irys_id`, fetch the spec from Irys and hash-verify it against the
+    on-chain specHash (salt-bound) before trusting it. Returns None when no spec is discoverable here —
+    e.g. a job funded through a different operator's board (trustless cross-operator discovery needs the
+    on-chain spec pointer, a v5/Base item)."""
+    listing = _listing(job_id)
+    if listing and (listing.get("task") or "").strip():
+        return _spec_text(listing)
+    sid = (listing or {}).get("spec_irys_id")
+    if sid:
+        try:
+            raw = irys_store.fetch(sid).decode("utf-8", "replace")
+            salt = (listing or {}).get("salt", "")
+            if Web3.to_hex(Web3.keccak(text=f"{raw}#{salt}")).lower() == str(job.get("spec_hash", "")).lower():
+                return raw
+        except Exception:
+            return None
+    return None
+
+
+def _committee_trusted(w3, job_id: int, quorum: int) -> bool:
+    """True iff the job's on-chain committee contains at least `quorum` PLATFORM-OPERATED evaluators — i.e.
+    trusted members alone can reach quorum and settle honestly. Defends a provider against a client that
+    named a sock-puppet committee to reject delivered work and refund itself (the free-work attack)."""
+    try:
+        members = esc.get_committee(w3, job_id)
+    except Exception:
+        return False
+    trusted = registry.trusted_evaluator_addrs()
+    known = sum(1 for m in members if m.lower() in trusted)
+    return known >= max(1, quorum)
 
 
 def _adopt(run: "Run", job_id: int) -> dict:
@@ -212,26 +248,35 @@ async def provider_worker(run: Run, name: str, addr: str, api_key: str, wallet_i
                          wallet_uuid=wallet_id, name=name) as pw_root:
         async with pw_root.scoped(pact, name_suffix="") as pw:
             while not run.stop.is_set():
-                # Discover via the off-chain board (only written AFTER a job is funded), so we never
-                # read a job that isn't on-chain yet. Guard getJob in case it's momentarily not visible.
-                for job_id_s in list(_read_board().keys()):
-                    job_id = int(job_id_s)
-                    if job_id in attempted:
+                # Chain-authoritative discovery: the chain (not the local board) is the source of truth for
+                # which jobs exist + their state. Sweep recent Funded, unclaimed ids; the task text comes from
+                # the board listing (or an Irys fallback), hash-bound to the on-chain specHash at post time.
+                try:
+                    candidates = await asyncio.to_thread(
+                        lambda: list(esc.scan_jobs(w3, statuses={"Funded"}, skip=attempted)))
+                except Exception:
+                    candidates = []
+                for job_id, job in candidates:
+                    if int(job["provider"], 16) != 0:
+                        attempted.add(job_id)  # already claimed by someone — stop rechecking
                         continue
                     rec = _adopt(run, job_id)  # adopt ANY open job, not just this run's (dissolve the pool)
                     if rec.get("winner"):
                         continue
-                    try:
-                        job = await asyncio.to_thread(esc.get_job, w3, job_id)
-                    except Exception:
-                        continue  # not yet visible on-chain (createJob still confirming)
-                    if job["status"] != "Funded" or int(job["provider"], 16) != 0:
+                    spec = await asyncio.to_thread(_spec_for, job_id, job)
+                    if not spec:
+                        continue  # no spec discoverable on this operator (e.g. posted via a different board)
+                    reward = float((_listing(job_id) or {}).get("reward_usdc") or (job["amount"] / 1_000_000))
+                    # Claim-policy gates (before spending any reasoning or gas):
+                    if config.PROVIDER_MIN_REWARD_USDC and reward < config.PROVIDER_MIN_REWARD_USDC:
+                        attempted.add(job_id)
+                        continue  # below the reward floor — a bounded participant ignores dust
+                    if config.PROVIDER_REQUIRE_KNOWN_COMMITTEE and not await asyncio.to_thread(
+                            _committee_trusted, w3, job_id, job.get("quorum", 1)):
+                        attempted.add(job_id)
+                        log.info("[%s] skipping job #%s: committee not sufficiently platform-operated "
+                                 "(anti free-work vetting)", name, job_id)
                         continue
-                    listing = _listing(job_id)
-                    if not listing:
-                        continue
-                    spec = _spec_text(listing)
-                    reward = float(listing.get("reward_usdc") or (job["amount"] / 1_000_000))
                     decision = await asyncio.to_thread(reasoning.provider_decide_accept, spec, reward,
                                                        provider_name=name)
                     rec["accept_decisions"][name] = decision
@@ -320,37 +365,37 @@ async def committee_worker(run: Run, member: "registry.Participant", vote_lock: 
         log.info("[%s] onboarded (wallet %s…, model %s)", name, member.wallet_id[:8], mllm["model"])
         async with ew_root.scoped(pact, name_suffix="") as ew:
             while not run.stop.is_set():
-                for job_id_s in list(_read_board().keys()):
-                    job_id = int(job_id_s)
-                    if job_id in voted:
-                        continue
+                # Chain-authoritative: sweep recent Submitted jobs. The committee is fixed on-chain, so we act
+                # only where our address is a member. Criteria come from the board listing (or an Irys
+                # fallback), hash-bound to the on-chain specHash; the deliverable is fetched from Irys.
+                try:
+                    candidates = await asyncio.to_thread(
+                        lambda: list(esc.scan_jobs(w3, statuses={"Submitted"}, skip=voted)))
+                except Exception:
+                    candidates = []
+                for job_id, job in candidates:
                     rec = _adopt(run, job_id)  # adopt ANY job we're on the committee for (dissolve the pool)
                     try:
                         members = await asyncio.to_thread(esc.get_committee, w3, job_id)
                     except Exception:
                         continue
                     if int(addr, 16) not in (int(a, 16) for a in members):
-                        continue  # not on this job's committee (committee is fixed on-chain at createJob)
-                    try:
-                        job = await asyncio.to_thread(esc.get_job, w3, job_id)
-                    except Exception:
-                        continue
-                    if job["status"] != "Submitted":
-                        if job["status"] in ("Resolved", "Disputed", "Completed", "Rejected", "Refunded"):
-                            voted.add(job_id)  # voting closed
+                        voted.add(job_id)  # not on this job's committee (fixed on-chain) — skip henceforth
                         continue
                     if await asyncio.to_thread(esc.has_member_voted, w3, job_id, addr):
                         voted.add(job_id)
                         continue
                     if not (rec.get("irys") or job.get("irys_id")):
                         continue  # deliverable not stored yet (check on-chain irys id for external jobs)
+                    spec = _spec_for(job_id, job)
+                    if not spec:
+                        continue  # acceptance criteria not discoverable here yet — retry next poll
                     try:
                         fetched = await _load_deliverable(w3, rec, job)
                         if fetched is None:
                             continue  # deliverable unfetchable right now — retry next poll
                         verdict = await asyncio.to_thread(reasoning.evaluate_member,
-                                                          _spec_text(_listing(job_id) or rec), fetched,
-                                                          member_name=name, llm=mllm)
+                                                          spec, fetched, member_name=name, llm=mllm)
                         approve = bool(verdict.get("accept"))
                     except Exception as e:  # transient model/network hiccup (503/429/timeout) — retry next poll
                         log.info("[%s] evaluate job #%s failed (%s); retrying next poll", name, job_id, type(e).__name__)

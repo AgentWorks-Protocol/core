@@ -5,6 +5,7 @@ import { liveJobV2, settlementV2 } from "../../../../lib/chain";
 import { CFG, txUrl, irysUrl, addrUrl, shortHex } from "../../../../lib/config";
 import { Badge } from "../../../../components/Badge";
 import { runBadge } from "../../../../components/dashboard/RunCard";
+import { ReclaimPanel } from "../../../../components/dashboard/ReclaimPanel";
 import type { AgentRun } from "../../../../lib/agent";
 
 export const dynamic = "force-dynamic";
@@ -112,6 +113,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
             <div className="pact">Pact · escrow v4 allowlist (no USDC)</div>
           </div>
         </div>
+
+        <ReclaimPanel jobId={jobId} />
 
         {(run?.fund_decision || accepts.length > 0 || run?.verdict) && (
           <div className="reason">

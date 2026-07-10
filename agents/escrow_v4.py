@@ -22,6 +22,7 @@ from pathlib import Path
 
 from eth_abi import encode
 from web3 import Web3
+from web3.logs import DISCARD
 
 import config
 
@@ -102,6 +103,26 @@ def submit_work(job_id: int, deliverable_hash: bytes, irys_id: str) -> str:
                      [job_id, deliverable_hash, irys_id])
 
 
+# ── canonical spec hash (id-independent) ──
+
+def spec_text(task: str, criteria: str) -> str:
+    """The human-readable spec a provider works against (task + optional acceptance criteria)."""
+    return f"{task}\n\nAcceptance criteria: {criteria}".strip() if criteria else task
+
+
+def random_salt_hex() -> str:
+    """A client-chosen 32-hex-char salt that makes each job's spec hash unique WITHOUT baking in the job id
+    (the id isn't known until the createJob receipt, so binding to it forced a predicted-id race)."""
+    return "0x" + os.urandom(16).hex()
+
+
+def spec_hash(task: str, criteria: str, salt: str) -> bytes:
+    """Canonical spec hash = keccak("<spec>#<salt>"). Salt decouples the hash from the job id, so a listing
+    can be re-derived and bound from the REAL receipt id after funding (no predicted-id race). This exact
+    expression must stay identical across the server (post-calldata + publish check) and the MCP post_job."""
+    return Web3.keccak(text=f"{spec_text(task, criteria)}#{salt}")
+
+
 # ── committee voting + dispute ──
 
 def cast_vote(job_id: int, approve_vote: bool) -> str:
@@ -126,9 +147,9 @@ def resolve_timeout(job_id: int) -> str:
 
 def claim_refund(job_id: int) -> str:
     """Client deadline-refund: the anti-freeze exit for a job that stalled before settlement (Funded but
-    never accepted, or Accepted/Submitted but never resolved) once its deadline passes. forceResolve /
-    resolveTimeout only cover Submitted / Disputed, so without this a stranded Funded/Accepted job's
-    escrow could only be recovered by hand-rolled calldata (see contract claimRefund(uint256))."""
+    never accepted, or Accepted but never resolved) once its deadline passes. NOTE: the contract rejects
+    claimRefund for a Submitted job — a stalled Submitted job is recovered by the permissionless
+    forceResolve (→ tentative refund) instead (see contract claimRefund(uint256))."""
     return _calldata("claimRefund(uint256)", ["uint256"], [job_id])
 
 
@@ -166,6 +187,16 @@ def next_job_id(w3: Web3) -> int:
     return _retry(lambda: _escrow(w3).functions.nextJobId().call())
 
 
+def job_id_from_receipt(w3: Web3, tx_hash: str) -> int:
+    """The REAL job id, decoded from the createJob receipt's `JobCreated(uint256 indexed jobId, …)` event.
+    Use this instead of the pre-tx nextJobId so a same-block createJob race can't mis-identify the job."""
+    rcpt = _retry(lambda: w3.eth.get_transaction_receipt(tx_hash))
+    evts = _escrow(w3).events.JobCreated().process_receipt(rcpt, errors=DISCARD)
+    if not evts:
+        raise ValueError(f"no JobCreated event in receipt {tx_hash}")
+    return int(evts[0]["args"]["jobId"])
+
+
 def get_job(w3: Web3, job_id: int) -> dict:
     j = _retry(lambda: _escrow(w3).functions.getJob(job_id).call())
     return {
@@ -174,6 +205,31 @@ def get_job(w3: Web3, job_id: int) -> dict:
         "irys_id": j[5], "deadline": j[6], "status": STATUS.get(j[7], j[7]),
         "committee_size": j[8], "quorum": j[9],
     }
+
+
+SCAN_DEPTH = 200  # how many recent job ids to sweep during chain-authoritative discovery
+
+
+def scan_jobs(w3: Web3, statuses: "set[str] | None" = None, depth: int = SCAN_DEPTH,
+              skip: "set[int] | None" = None):
+    """Chain-authoritative discovery: sweep the most recent `depth` job ids (newest first) and yield
+    (job_id, job) for those whose status is in `statuses` (or every live job if None). The chain — not the
+    off-chain board — is the source of truth for which jobs exist and what state they're in. Pass `skip`
+    (ids the caller is already done with) to avoid re-reading settled/decided jobs each poll."""
+    n = next_job_id(w3)
+    lo = max(1, n - depth)
+    for job_id in range(n - 1, lo - 1, -1):
+        if skip and job_id in skip:
+            continue
+        try:
+            job = get_job(w3, job_id)
+        except Exception:
+            continue
+        if job["status"] in (None, "None"):
+            continue
+        if statuses and job["status"] not in statuses:
+            continue
+        yield job_id, job
 
 
 def get_committee(w3: Web3, job_id: int) -> list[str]:

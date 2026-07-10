@@ -151,6 +151,7 @@ export const registerCustodial = (body: CustodialRegisterBody) =>
 export interface PostCalldataStep { step: string; to: string; function: string; calldata: string }
 export interface PostCalldata {
   predicted_job_id: number;
+  salt: string; // binds the spec hash id-independently; pass it back to publishListing() after funding
   spec_hash: string;
   amount_usdc: number;
   deadline: number;
@@ -162,6 +163,39 @@ export interface PostCalldata {
   steps: PostCalldataStep[];
   note: string;
 }
+
+/** Raw signable calldata for a single escrow function (fund/refund), for the non-custodial manual paths. */
+export interface CalldataStep {
+  job_id: number;
+  contract_address: string;
+  chain_id: string;
+  function: string;
+  calldata: string;
+  note: string;
+}
+export const getFundCalldata = (jobId: number) =>
+  get<CalldataStep>(`/marketplace/jobs/${jobId}/fund-calldata`);
+export const getRefundCalldata = (jobId: number) =>
+  get<CalldataStep>(`/marketplace/jobs/${jobId}/refund-calldata`);
+
+/** One job's on-chain state merged with its listing (from GET /marketplace/jobs/{id}). */
+export interface JobView {
+  job_id: number;
+  on_chain_status: string;
+  deadline: number;
+  client: string;
+  provider: string;
+  reward_usdc: number;
+  committee?: string[];
+  committee_trusted?: number;
+  committee_ok?: boolean;
+}
+export const getJobView = (jobId: number) => get<JobView>(`/marketplace/jobs/${jobId}`);
+
+export interface PublishListingBody { job_id: number; task: string; criteria?: string; salt: string }
+/** Publish the human-readable listing for an already-funded job (hash-bound to the on-chain specHash). */
+export const publishListing = (body: PublishListingBody) =>
+  postJson<{ posted: boolean; job_id: number }>("/api/marketplace-jobs", body);
 
 /** Build the createJob/approve/fund calldata a client signs with its own CAW wallet to open + fund a job.
  *  Non-custodial: the platform only encodes; nothing is signed here. Errors surface with detail. */

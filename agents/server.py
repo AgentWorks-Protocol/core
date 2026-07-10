@@ -61,13 +61,8 @@ def _require_token(authorization: str, token: str) -> None:
         raise HTTPException(status_code=401, detail="missing/invalid bearer token")
 
 
-def _spec_hash(task: str, criteria: str, job_id: int) -> "bytes":
-    """Canonical job spec-hash = keccak256("<spec>#<jobId>"). Must stay identical to the expression a
-    client funds with (marketplace_post_calldata) so marketplace_post_job can re-derive it and bind a
-    listing to the job that was actually funded on-chain."""
-    from web3 import Web3
-    spec = f"{task}\n\nAcceptance criteria: {criteria}".strip() if criteria else task
-    return Web3.keccak(text=f"{spec}#{job_id}")
+# The canonical job spec-hash lives in escrow_v4.spec_hash(task, criteria, salt) — salt-bound and
+# id-INDEPENDENT, so a listing can be re-derived + bound from the real createJob receipt id (no id race).
 
 
 def _seed_data_dir() -> None:
@@ -187,7 +182,6 @@ def run_one(job_id: int) -> dict:
 # external keys - it returns calldata the agent signs with its own CAW wallet.
 
 _ZERO = "0x0000000000000000000000000000000000000000"
-_SCAN_DEPTH = 200  # how many recent job ids to scan during discovery
 
 
 def _listing_view(job_id: int, on_chain: dict, listing: dict | None) -> dict:
@@ -201,6 +195,8 @@ def _listing_view(job_id: int, on_chain: dict, listing: dict | None) -> dict:
         "client": listing.get("client") or on_chain.get("client", ""),
         "deadline": listing.get("deadline") or on_chain.get("deadline", 0),
         "posted_at": listing.get("posted_at", 0),
+        "salt": listing.get("salt", ""),
+        "spec_irys_id": listing.get("spec_irys_id", ""),
         "on_chain_status": on_chain.get("status", "unknown"),
         "provider": on_chain.get("provider", _ZERO),
         "committee_size": on_chain.get("committee_size", 0),
@@ -219,23 +215,14 @@ def marketplace_jobs(status: str = "open") -> dict:
     import escrow_v4 as esc
     w3 = esc.web3()
     try:
-        n = esc.next_job_id(w3)
+        if status == "open":
+            pairs = [(jid, j) for jid, j in esc.scan_jobs(w3, statuses={"Funded"})
+                     if int(j.get("provider", _ZERO), 16) == 0]
+        else:
+            pairs = list(esc.scan_jobs(w3))
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"chain read failed: {e}")
-    lo = max(1, n - _SCAN_DEPTH)
-    jobs = []
-    for job_id in range(n - 1, lo - 1, -1):
-        try:
-            on_chain = esc.get_job(w3, job_id)
-        except Exception:
-            continue
-        if on_chain.get("status") in (None, "None"):
-            continue
-        if status == "open" and not (
-            on_chain.get("status") == "Funded" and int(on_chain.get("provider", _ZERO), 16) == 0
-        ):
-            continue
-        jobs.append(_listing_view(job_id, on_chain, autonomous._listing(job_id)))
+    jobs = [_listing_view(jid, j, autonomous._listing(jid)) for jid, j in pairs]
     return {"count": len(jobs), "jobs": jobs}
 
 
@@ -251,7 +238,18 @@ def marketplace_job(job_id: int) -> dict:
         raise HTTPException(status_code=404, detail=f"job {job_id} not found: {e}")
     if on_chain.get("status") in (None, "None"):
         raise HTTPException(status_code=404, detail=f"job {job_id} does not exist")
-    return _listing_view(job_id, on_chain, autonomous._listing(job_id))
+    view = _listing_view(job_id, on_chain, autonomous._listing(job_id))
+    # Committee provenance so a provider (or a human) can see whether the committee is platform-operated
+    # before trusting the job — the anti free-work signal. (Cheap for a single job; omitted from the list.)
+    try:
+        members = esc.get_committee(w3, job_id)
+        trusted = registry.trusted_evaluator_addrs()
+        view["committee"] = members
+        view["committee_trusted"] = sum(1 for m in members if m.lower() in trusted)
+        view["committee_ok"] = view["committee_trusted"] >= max(1, on_chain.get("quorum", 1))
+    except Exception:
+        pass
+    return view
 
 
 @app.get("/marketplace/post-calldata")
@@ -260,11 +258,12 @@ def marketplace_post_calldata(client_address: str, amount_usdc: float, task: str
                               deadline_days: int = 7) -> dict:
     """Build the createJob/approve/fund calldata an external CLIENT signs with its own CAW wallet to open
     and fund a job. v4 names an evaluator COMMITTEE: pass `committee` as a comma-separated list of addresses
-    (odd N) and an optional `quorum` (defaults to a strict majority, config.COMMITTEE_QUORUM). After funding,
-    the client publishes the human-readable listing via POST /marketplace/jobs.
+    (odd N) and an optional `quorum` (defaults to a strict majority, config.COMMITTEE_QUORUM).
 
-    NOTE: job_id is predicted from the current nextJobId - if two clients fund in the same block the
-    prediction can race; re-read the real id from the createJob receipt before posting the listing.
+    The returned `salt` binds the spec hash id-INDEPENDENTLY, so createJob + the listing are race-safe:
+    sign createJob, read the REAL job id from the createJob receipt, then approve + fund(realId) (use
+    GET /marketplace/jobs/{id}/fund-calldata if the real id differs from predicted_job_id), then publish
+    the listing via POST /marketplace/jobs with the same `salt`.
     """
     import escrow_v4 as esc
     from web3 import Web3
@@ -275,14 +274,16 @@ def marketplace_post_calldata(client_address: str, amount_usdc: float, task: str
     q = quorum or config.COMMITTEE_QUORUM
     w3 = esc.web3()
     try:
-        job_id = esc.next_job_id(w3)
+        job_id = esc.next_job_id(w3)  # predicted only — a hint for the fund step; the hash no longer uses it
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"chain read failed: {e}")
-    spec_hash_b = _spec_hash(task, criteria, job_id)
+    salt = esc.random_salt_hex()
+    spec_hash_b = esc.spec_hash(task, criteria, salt)
     amt = int(round(amount_usdc * 1_000_000))
     deadline = int(time.time()) + max(1, deadline_days) * 24 * 3600
     return {
         "predicted_job_id": job_id,
+        "salt": salt,
         "spec_hash": Web3.to_hex(spec_hash_b),
         "amount_usdc": amount_usdc,
         "deadline": deadline,
@@ -302,7 +303,9 @@ def marketplace_post_calldata(client_address: str, amount_usdc: float, task: str
              "function": "fund(uint256)",
              "calldata": esc.fund(job_id)},
         ],
-        "note": "job_id is predicted from nextJobId; verify the real id from the createJob receipt before POST /marketplace/jobs.",
+        "note": "createJob's spec hash is salt-bound (id-independent). Read the REAL job id from the createJob "
+                "receipt; if it differs from predicted_job_id, refetch fund calldata from "
+                "GET /marketplace/jobs/{id}/fund-calldata before funding. Then POST /marketplace/jobs with this salt.",
     }
 
 
@@ -310,6 +313,7 @@ class PostJobBody(BaseModel):
     job_id: int
     task: str
     criteria: str = ""
+    salt: str = ""            # the salt returned by /marketplace/post-calldata (binds the spec hash)
     reward_usdc: float | None = None
 
 
@@ -333,14 +337,28 @@ def marketplace_post_job(body: PostJobBody) -> dict:
     if int(job["provider"], 16) != 0:
         raise HTTPException(status_code=400, detail=f"job {body.job_id} already has a provider")
     # Bind the listing to what was funded: only the exact spec the client committed on-chain can be posted.
-    expected = Web3.to_hex(_spec_hash(body.task, body.criteria, body.job_id))
+    # The hash is salt-bound (id-independent), so the real receipt id always reproduces it.
+    expected = Web3.to_hex(esc.spec_hash(body.task, body.criteria, body.salt))
     if expected.lower() != str(job["spec_hash"]).lower():
-        raise HTTPException(status_code=403, detail="task/criteria do not match the job's on-chain "
+        raise HTTPException(status_code=403, detail="task/criteria/salt do not match the job's on-chain "
                             "specHash (only the funded spec can be listed)")
     # The reward shown to providers is always the on-chain escrow amount — never a caller-supplied number.
     reward = job["amount"] / 1_000_000
+    # Best-effort: persist the spec to Irys (durable + independently hash-verifiable), so the task text
+    # isn't only in this operator's board.json. Never fail the publish on an Irys hiccup — the board carries
+    # the text regardless. (A fully trustless cross-operator pointer would live on-chain — a v5/Base item.)
+    spec_irys_id = ""
+    try:
+        import irys_store
+        up = irys_store.upload(esc.spec_text(body.task, body.criteria),
+                               {"app": "AgentWorks", "kind": "spec", "job-id": str(body.job_id),
+                                "spec-hash": job["spec_hash"]})
+        spec_irys_id = up.get("id", "")
+    except Exception:
+        spec_irys_id = ""
     autonomous._post_listing(body.job_id, task=body.task, criteria=body.criteria, reward_usdc=reward,
-                             spec_hash=job["spec_hash"], client=job["client"], deadline=job["deadline"])
+                             spec_hash=job["spec_hash"], client=job["client"], deadline=job["deadline"],
+                             salt=body.salt, spec_irys_id=spec_irys_id)
     return {"posted": True, **_listing_view(body.job_id, job, autonomous._listing(body.job_id))}
 
 
@@ -568,11 +586,28 @@ def marketplace_finalize_calldata(job_id: int) -> dict:
     }
 
 
+@app.get("/marketplace/jobs/{job_id}/fund-calldata")
+def marketplace_fund_calldata(job_id: int) -> dict:
+    """Build the fund calldata the CLIENT signs after createJob to move USDC into escrow. Handy on the
+    manual/advanced post path when the real createJob receipt id differs from the predicted one — refetch
+    fund calldata for the confirmed id (createJob's spec hash is salt-bound, so it's already correct)."""
+    import escrow_v4 as esc
+    return {
+        "job_id": job_id,
+        "contract_address": config.ESCROW_V4_ADDRESS,
+        "chain_id": config.CHAIN_ID,
+        "function": "fund(uint256)",
+        "calldata": esc.fund(job_id),
+        "note": "sign with the client wallet AFTER approve; requires the job be Open and you its client.",
+    }
+
+
 @app.get("/marketplace/jobs/{job_id}/refund-calldata")
 def marketplace_refund_calldata(job_id: int) -> dict:
     """Build the claimRefund calldata the CLIENT signs to reclaim escrow on a job that stalled before
-    settlement (Funded but never accepted, or Accepted/Submitted but never resolved) once its deadline has
-    passed. The deadline anti-freeze exit — finalize/resolveTimeout only cover Resolved/Disputed."""
+    settlement (Funded but never accepted, or Accepted but never resolved) once its deadline has passed.
+    The deadline anti-freeze exit. NOTE: the contract rejects claimRefund for a Submitted job — a stalled
+    Submitted job is instead recovered by the permissionless forceResolve (→ tentative refund)."""
     import escrow_v4 as esc
     return {
         "job_id": job_id,
@@ -580,7 +615,7 @@ def marketplace_refund_calldata(job_id: int) -> dict:
         "chain_id": config.CHAIN_ID,
         "function": "claimRefund(uint256)",
         "calldata": esc.claim_refund(job_id),
-        "note": "callable by the client after the deadline for a Funded/Accepted/Submitted job; refunds the escrow.",
+        "note": "callable by the client after the deadline for a Funded/Accepted job (not Submitted); refunds the escrow.",
     }
 
 

@@ -8,7 +8,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { getDirectory, getPostCalldata, type DirectoryEntry, type PostCalldata } from "../../lib/agent";
+import { getDirectory, getPostCalldata, publishListing, getFundCalldata,
+  type DirectoryEntry, type PostCalldata, type CalldataStep } from "../../lib/agent";
 import { shortHex } from "../../lib/config";
 
 function Copy({ text }: { text: string }) {
@@ -38,6 +39,12 @@ export function PostJob() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [calldata, setCalldata] = useState<PostCalldata | null>(null);
+
+  // advanced-path listing publish (after the client funds with its own signer)
+  const [confirmId, setConfirmId] = useState("");
+  const [fundCd, setFundCd] = useState<CalldataStep | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [publishMsg, setPublishMsg] = useState("");
 
   useEffect(() => {
     let live = true;
@@ -88,6 +95,23 @@ export function PostJob() {
     setBusy(false);
     if (!res.ok || !res.data) { setErr(res.error || "could not build calldata"); return; }
     setCalldata(res.data);
+  }
+
+  async function fetchFund() {
+    const id = Number(confirmId);
+    if (!Number.isFinite(id) || id <= 0) return;
+    setFundCd(await getFundCalldata(id));
+  }
+
+  async function doPublish() {
+    const id = Number(confirmId);
+    if (!Number.isFinite(id) || id <= 0) { setPublishMsg("⚠ enter the confirmed on-chain job id"); return; }
+    if (!calldata) return;
+    setPublishing(true); setPublishMsg("");
+    const res = await publishListing({ job_id: id, task: task.trim(), criteria: criteria.trim(), salt: calldata.salt });
+    setPublishing(false);
+    setPublishMsg(res.ok ? `Published ✓ — listing for job #${id} is live; providers can discover it.`
+                         : `⚠ ${res.error || "publish failed"}`);
   }
 
   return (
@@ -188,6 +212,42 @@ export function PostJob() {
                     </div>
                   </div>
                 ))}
+
+                {/* After funding: publish the listing (id-safe — the spec hash is salt-bound, not id-bound) */}
+                <div className="proof" style={{ marginTop: 14 }}>
+                  <div className="ph"><span className="t">After funding · publish your listing</span></div>
+                  <div className="pb" style={{ display: "block" }}>
+                    <div className="fh" style={{ color: "var(--ink-3)" }}>
+                      Read the real job id from your <b>createJob receipt</b>. If it differs from predicted
+                      #{calldata.predicted_job_id}, fetch fund calldata for the real id and fund that first. Then
+                      publish so providers can discover the task (the on-chain job holds only a hash).
+                    </div>
+                    <div className="field" style={{ marginTop: 10 }}>
+                      <div className="lab">Confirmed on-chain job id</div>
+                      <input className="inp" inputMode="numeric" placeholder={String(calldata.predicted_job_id)}
+                        value={confirmId} onChange={(e) => setConfirmId(e.target.value.replace(/[^0-9]/g, ""))}
+                        style={{ maxWidth: 220 }} />
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                      <button className="filter" onClick={fetchFund} disabled={!confirmId}>Fund calldata for this id</button>
+                      <button className="btn accent" onClick={doPublish} disabled={!confirmId || publishing}>
+                        {publishing ? "Publishing…" : "Publish listing"}
+                      </button>
+                    </div>
+                    {fundCd && (
+                      <div className="proof" style={{ marginTop: 10 }}>
+                        <div className="ph"><span className="t">fund · {fundCd.function}</span><span className="when"><Copy text={fundCd.calldata} /></span></div>
+                        <pre style={{ margin: 0, padding: 12, overflowX: "auto", fontFamily: "var(--mono)", fontSize: 11, lineHeight: 1.5 }}>{fundCd.calldata}</pre>
+                      </div>
+                    )}
+                    {publishMsg && (
+                      <div className={publishMsg.startsWith("⚠") ? "err" : "fh"}
+                        style={{ marginTop: 8, ...(publishMsg.startsWith("⚠") ? {} : { color: "var(--settled)" }) }}>
+                        {publishMsg}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </>
             )}
           </div>

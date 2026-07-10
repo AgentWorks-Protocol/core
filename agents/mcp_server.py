@@ -268,20 +268,23 @@ async def post_job(task: str, criteria: str = "", reward_usdc: float = 5.0, dead
                          "the deliverable, e.g. committee=['0x..','0x..','0x..']"}
     q = quorum or config.COMMITTEE_QUORUM
     w3 = esc.web3()
-    job_id = await asyncio.to_thread(esc.next_job_id, w3)
-    spec = f"{task}\n\nAcceptance criteria: {criteria}".strip() if criteria else task
-    spec_hash = Web3.keccak(text=f"{spec}#{job_id}")
+    # Salt-bound spec hash is id-INDEPENDENT, so we can read the REAL job id from the createJob receipt
+    # (not the predicted nextJobId) and fund + publish against it — no same-block id race.
+    salt = esc.random_salt_hex()
+    spec_hash = esc.spec_hash(task, criteria, salt)
     amt = int(round(reward_usdc * 1_000_000))
     deadline = int(time.time()) + max(1, deadline_days) * 24 * 3600
     tx_create = await _sign(config.ESCROW_V4_ADDRESS,
                             esc.create_job(committee, q, amt, spec_hash, deadline), "createJob")
+    job_id = await asyncio.to_thread(esc.job_id_from_receipt, w3, tx_create)
     tx_approve = await _sign(config.USDC_ADDRESS, esc.approve(config.ESCROW_V4_ADDRESS, amt), "approve")
     tx_fund = await _sign(config.ESCROW_V4_ADDRESS, esc.fund(job_id), "fund")
     listing: Any = None
     try:
         def _pub():
             r = requests.post(f"{AGENT_API}/marketplace/jobs",
-                              json={"job_id": job_id, "task": task, "criteria": criteria, "reward_usdc": reward_usdc},
+                              json={"job_id": job_id, "task": task, "criteria": criteria,
+                                    "salt": salt, "reward_usdc": reward_usdc},
                               timeout=30)
             return r.json() if r.status_code < 400 else {"warn": f"HTTP {r.status_code}: {r.text[:200]}"}
         listing = await asyncio.to_thread(_pub)
@@ -356,16 +359,49 @@ async def _wait_reveal_ready(w3: Web3, commit_tx: str) -> None:
         await asyncio.sleep(4.0)
 
 
+def _committee_review(w3, job_id: int, quorum: int) -> dict:
+    """Committee provenance check for a would-be provider: how many of the job's committee are known
+    PLATFORM-OPERATED evaluators. `ok` means trusted members alone can reach quorum, so a client-controlled
+    (sock-puppet) committee can't reject your delivered work to refund itself (the free-work attack)."""
+    import registry
+    try:
+        members = esc.get_committee(w3, job_id)
+    except Exception:
+        return {"size": 0, "trusted": 0, "trusted_set_size": 0, "ok": False}
+    trusted = registry.trusted_evaluator_addrs()
+    known = sum(1 for m in members if m.lower() in trusted)
+    return {"size": len(members), "trusted": known, "trusted_set_size": len(trusted),
+            "ok": known >= max(1, quorum)}
+
+
+def _committee_gate(review: dict, quorum: int) -> "str | dict | None":
+    """Return an error dict to ABORT (operator opted in via PROVIDER_REQUIRE_KNOWN_COMMITTEE and has a
+    trusted set), a warning string to PROCEED-with-caution, or None if the committee is trusted."""
+    if review["ok"]:
+        return None
+    warn = (f"committee has only {review['trusted']}/{quorum} platform-operated evaluators "
+            f"(of {review['size']}); a client-controlled committee could reject your work and refund itself.")
+    if config.PROVIDER_REQUIRE_KNOWN_COMMITTEE and review["trusted_set_size"] > 0:
+        return {"error": "committee vetting failed — " + warn, "committee_review": review}
+    return warn
+
+
 @mcp.tool()
 async def accept_job(job_id: int) -> dict:
     """[provider] Claim a funded job via the SEALED commit-reveal race (runs BOTH phases): commit an
     opaque hash (the jobId stays hidden from the public mempool), wait the short reveal delay, then
     reveal to claim. The first valid reveal wins; a loser's reveal reverts. Re-reads the job to report
-    whether you won. (For step-by-step control, use commit_accept() then reveal_accept().)"""
+    whether you won. Vets the committee first (anti free-work). (For step-by-step control, use
+    commit_accept() then reveal_accept().)"""
     w3 = esc.web3()
     job = await asyncio.to_thread(esc.get_job, w3, job_id)
     if job["status"] != "Funded":
         return {"error": f"job {job_id} is not available (status: {job['status']})"}
+    review = await asyncio.to_thread(_committee_review, w3, job_id, job.get("quorum", 1))
+    gate = _committee_gate(review, job.get("quorum", 1))
+    if isinstance(gate, dict):
+        return gate  # hard abort (operator opted into committee vetting)
+    committee_warning = gate  # None or a caution string surfaced in the result
     salt = esc.random_salt()
     _salts[job_id] = salt
     try:
@@ -384,7 +420,7 @@ async def accept_job(job_id: int) -> dict:
     won = int(after["provider"], 16) == int(MCP_ADDRESS, 16)
     _salts.pop(job_id, None)
     return {"job_id": job_id, "won": won, "txs": {"commitAccept": _tx(commit_tx), "revealAccept": _tx(reveal_tx)},
-            "provider_now": after["provider"],
+            "provider_now": after["provider"], "committee_warning": committee_warning,
             "next": "deliver_work(%d, <your work>)" % job_id if won else "another provider won; pick another job"}
 
 
@@ -397,6 +433,10 @@ async def commit_accept(job_id: int) -> dict:
     job = await asyncio.to_thread(esc.get_job, w3, job_id)
     if job["status"] != "Funded":
         return {"error": f"job {job_id} is not available (status: {job['status']})"}
+    review = await asyncio.to_thread(_committee_review, w3, job_id, job.get("quorum", 1))
+    gate = _committee_gate(review, job.get("quorum", 1))
+    if isinstance(gate, dict):
+        return gate  # hard abort (operator opted into committee vetting)
     salt = esc.random_salt()
     _salts[job_id] = salt
     try:
@@ -405,7 +445,7 @@ async def commit_accept(job_id: int) -> dict:
     except Exception as e:
         _salts.pop(job_id, None)
         return {"error": f"commitAccept failed: {type(e).__name__}: {e}"}
-    return {"job_id": job_id, "committed": True, "tx": _tx(tx),
+    return {"job_id": job_id, "committed": True, "tx": _tx(tx), "committee_warning": gate,
             "next": "after ~%d block(s), reveal_accept(%d)" % (config.REVEAL_DELAY_BLOCKS, job_id)}
 
 

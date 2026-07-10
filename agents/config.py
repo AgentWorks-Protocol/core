@@ -79,6 +79,13 @@ DISPUTE_RESOLVE_WINDOW_BLOCKS = int(os.environ.get("DISPUTE_RESOLVE_WINDOW_BLOCK
 # Evaluator committee defaults for the autonomous run (odd N; quorum = strict majority).
 COMMITTEE_SIZE = int(os.environ.get("COMMITTEE_SIZE", "3"))
 COMMITTEE_QUORUM = int(os.environ.get("COMMITTEE_QUORUM", "2"))
+
+# Provider claim policy (the platform's standing provider is a bounded participant, not a monopolist):
+#  - REQUIRE_KNOWN_COMMITTEE: only claim jobs whose committee has >= quorum PLATFORM-OPERATED evaluators,
+#    so a client can't rig a sock-puppet committee to take delivered work for free.
+#  - MIN_REWARD_USDC: ignore dust jobs below this reward.
+PROVIDER_REQUIRE_KNOWN_COMMITTEE = os.environ.get("PROVIDER_REQUIRE_KNOWN_COMMITTEE", "true").strip().lower() in ("1", "true", "yes", "on")
+PROVIDER_MIN_REWARD_USDC = float(os.environ.get("PROVIDER_MIN_REWARD_USDC", "0"))
 USDC_ADDRESS = os.environ.get("USDC_TOKEN_ADDRESS", "")
 EXPLORER_TX = "https://sepolia.etherscan.io/tx/{}"
 EXPLORER_ADDR = "https://sepolia.etherscan.io/address/{}"

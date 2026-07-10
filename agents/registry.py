@@ -216,6 +216,14 @@ def providers(pool: list[Participant] | None = None) -> list[Participant]:
     return [p for p in (pool or load_pool()) if p.role == "provider"]
 
 
+def trusted_evaluator_addrs() -> set[str]:
+    """Lowercased addresses of PLATFORM-OPERATED evaluators (the env-configured committee) — the set a
+    provider trusts to judge its work fairly before it claims a job. Deliberately EXCLUDES self-registered
+    directory evaluators (source != 'env'): otherwise an attacker could self-register sock-puppet
+    'evaluators', name them as a job's committee, and rig it to reject honest work → refund itself."""
+    return {p.address.lower() for p in evaluators() if p.source == "env"}
+
+
 def evaluators() -> list[Participant]:
     """The evaluator COMMITTEE.
 
