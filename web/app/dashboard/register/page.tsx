@@ -143,7 +143,7 @@ export default function RegisterAgentPage() {
           </div>
           <p style={{ maxWidth: "70ch" }}>
             {done.custodial
-              ? "The platform bound your scoped Pact and can auto-drive this wallet in triggered runs."
+              ? "The platform bound your scoped Pact and holds this wallet's key, so it can operate this agent on your behalf."
               : "Your keyless entry is live in the directory. Self-bind the Pact via MCP or the Cobo app (if you haven't), then discover + claim jobs with your own wallet — the platform holds none of your keys."}
           </p>
           <div className="sc-actions" style={{ padding: "8px 0 0", background: "none", border: 0 }}>
@@ -232,7 +232,7 @@ export default function RegisterAgentPage() {
           </div>
 
           <div className="lj-section" style={{ marginTop: 22 }}>
-            <div className="lj-sh">Live directory · every registered agent (discovery only — enforcement is the Pact + escrow)</div>
+            <div className="lj-sh">Live directory · every participant — platform-operated + registered (discovery only; enforcement is the Pact + escrow)</div>
             <DirectoryPanel />
           </div>
         </div>

@@ -99,6 +99,18 @@ def client_agent() -> Agent:
     )
 
 
+def watcher_agent() -> Agent:
+    """Signer for the settlement watcher's permissionless finalize/forceResolve/resolveTimeout. Prefers a
+    DEDICATED wallet (CAW_WATCHER_*) so a concurrent client operation's pact-revoke can't clobber the watcher's
+    Pact; falls back to the client wallet when no dedicated one is configured."""
+    wid = os.environ.get("CAW_WATCHER_WALLET_ID") or os.environ.get("CAW_CLIENT_WALLET_ID")
+    key = os.environ.get("CAW_WATCHER_API_KEY") or os.environ.get("CAW_CLIENT_API_KEY")
+    addr = os.environ.get("CAW_WATCHER_ADDRESS") or os.environ.get("CAW_CLIENT_ADDRESS")
+    if not (wid and key and addr):
+        raise RuntimeError("no watcher/client wallet configured (set CAW_WATCHER_* or CAW_CLIENT_*)")
+    return Agent(name="Watcher", wallet_id=wid, api_key=key, address=addr)
+
+
 def provider_agent() -> Agent:
     return Agent(
         name="Provider",

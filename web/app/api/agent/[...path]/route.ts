@@ -3,7 +3,7 @@
  *  The dashboard is served over HTTPS but the agent service runs over plain HTTP on the signer droplet, so a
  *  browser-direct fetch would be blocked as mixed content. Client components fetch `/api/agent/<path>` here
  *  instead; this route (server-side) forwards to the agent service and returns the JSON. Reads are public, so
- *  no token is attached (POST /trigger stays on its own token-attaching route).
+ *  no token is attached (writes go through the dedicated /api/directory + /api/register token routes).
  */
 import { NextRequest, NextResponse } from "next/server";
 import { CFG } from "../../../../lib/config";

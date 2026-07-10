@@ -1,18 +1,20 @@
-"""FastAPI control surface for the autonomous agent service (Phase 6.5.4).
+"""FastAPI control surface for the open-marketplace agent service.
 
-Cloud-deployable HTTP front for the autonomous open-marketplace agents. The dashboard (Vercel)
-calls this instead of spawning local processes. The service talks to the CAW cloud API over HTTPS;
-on-chain SIGNING happens via the TSS node connected to the CAW relay (run alongside, or on a host
-you control - see docs/DEPLOY_AGENTS.md). This process holds NO key material.
+The dashboard (Vercel) reads this over the same-origin proxy; the service talks to the CAW cloud API over
+HTTPS. On-chain SIGNING happens via the TSS node connected to the CAW relay (on a host the operator controls,
+see docs/DEPLOY_SIGNER.md). This process holds NO key material.
+
+At startup it launches the platform's own agents as STANDING participants (provider + committee that claim +
+vote on any open job) and a neutral settlement watcher (permissionless finalize). It never auto-posts jobs —
+clients post with their own wallet via MCP `post_job` / the calldata rail.
 
 Endpoints:
-  GET  /health           liveness + config summary (escrow, providers, whether a run is active)
-  GET  /board            current open-job listings (off-chain marketplace listing)
-  GET  /runs             all run artifacts (settled + in-progress), newest first
-  GET  /runs/{job_id}    one run artifact
-  POST /trigger          launch an autonomous run; guarded by AGENT_TRIGGER_TOKEN if that env is set
-
-A single run executes at a time (the autonomous loops settle `max_jobs` then return).
+  GET  /health                     liveness + config + the participant pool + service status
+  GET  /board                      current open-job listings (off-chain marketplace listing)
+  GET  /runs, /runs/{job_id}       run artifacts written by the standing agents, newest first
+  GET  /marketplace/directory      the ONE canonical participant list (platform + registered)
+  GET  /marketplace/participants   same pool, legacy shape
+  *    /marketplace/*              open-marketplace calldata + registration rail (non-custodial)
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ import asyncio
 import json
 import logging
 import os
+import secrets
 import shutil
 import time
 from pathlib import Path
@@ -43,12 +46,7 @@ app.add_middleware(
     allow_methods=["*"], allow_headers=["*"],
 )
 
-_TOKEN = os.environ.get("AGENT_TRIGGER_TOKEN", "")  # if set, /trigger requires it
-_REGISTER_TOKEN = os.environ.get("AGENT_REGISTER_TOKEN", "")  # if set, /marketplace/register requires it
-
-if not _TOKEN:
-    log.warning("AGENT_TRIGGER_TOKEN is not set — POST /trigger is OPEN to anyone and drives the "
-                "TSS-signing wallets. Set it before exposing this service publicly.")
+_REGISTER_TOKEN = os.environ.get("AGENT_REGISTER_TOKEN", "")  # if set, /marketplace/register* requires it
 
 # Bounds on caller-supplied text so an anonymous request can't bloat the board / platform Irys account.
 _MAX_TASK_LEN = 2000
@@ -57,8 +55,9 @@ _MAX_DELIVERABLE_LEN = 100_000  # 100 KB cap on platform-funded Irys uploads
 
 
 def _require_token(authorization: str, token: str) -> None:
-    """Bearer-token gate. Open when `token` is empty; else require `Authorization: Bearer <token>`."""
-    if token and authorization != f"Bearer {token}":
+    """Bearer-token gate. Open when `token` is empty; else require `Authorization: Bearer <token>`
+    (constant-time compare so the token can't be recovered via response timing)."""
+    if token and not secrets.compare_digest(authorization, f"Bearer {token}"):
         raise HTTPException(status_code=401, detail="missing/invalid bearer token")
 
 
@@ -98,45 +97,40 @@ def _seed_data_dir() -> None:
 _seed_data_dir()
 
 
-# single-run guard
-_state: dict = {"active": False, "run_id": None, "started_at": None, "mode": None, "last_error": None}
-_task: asyncio.Task | None = None
-
-# settlement watcher (standing liveness that finalizes/settles EXTERNAL jobs the platform doesn't drive)
+# ── standing platform services ──
+# The platform runs its own agents as STANDING participants (provider + committee claim + vote on any open
+# job) and a neutral settlement watcher (permissionless finalize). It NEVER auto-posts jobs — clients post
+# with their own wallet (MCP `post_job` / the calldata rail). There is no demo trigger.
+_PLATFORM_AGENTS = os.environ.get("PLATFORM_AGENTS", "1") != "0"
 _WATCHER_ENABLED = os.environ.get("SETTLEMENT_WATCHER", "1") != "0"
-_watcher_task: asyncio.Task | None = None
+_stop = asyncio.Event()
+_bg_tasks: list[asyncio.Task] = []
 
 
 @app.on_event("startup")
-async def _start_watcher() -> None:
-    """Launch the settlement watcher so jobs posted+claimed+voted entirely by EXTERNAL agents still settle
-    (finalize is permissionless + outcome-neutral). No-ops without a first-party signer or when disabled."""
-    global _watcher_task
-    if not _WATCHER_ENABLED:
-        log.info("[watcher] disabled (SETTLEMENT_WATCHER=0)")
-        return
-    if not autonomous.has_first_party_signer():
-        log.info("[watcher] no first-party signer; external jobs settle via /marketplace/jobs/{id}/finalize-calldata")
-        return
-    _watcher_task = asyncio.create_task(autonomous.settlement_watcher())
+async def _start_services() -> None:
+    if _PLATFORM_AGENTS:
+        _bg_tasks.append(asyncio.create_task(autonomous.platform_agents(_stop)))
+        log.info("[server] standing platform agents launched")
+    else:
+        log.info("[server] platform agents disabled (PLATFORM_AGENTS=0)")
+    if _WATCHER_ENABLED and autonomous.has_first_party_signer():
+        _bg_tasks.append(asyncio.create_task(autonomous.settlement_watcher(stop=_stop)))
+        log.info("[server] settlement watcher launched")
+    else:
+        log.info("[server] settlement watcher disabled (SETTLEMENT_WATCHER=0 or no signer)")
 
 
 @app.on_event("shutdown")
-async def _stop_watcher() -> None:
-    if _watcher_task and not _watcher_task.done():
-        _watcher_task.cancel()
+async def _stop_services() -> None:
+    _stop.set()
+    for t in _bg_tasks:
+        if not t.done():
+            t.cancel()
 
 
-def _watcher_active() -> bool:
-    return bool(_watcher_task and not _watcher_task.done())
-
-
-class TriggerBody(BaseModel):
-    task: str | None = None
-    criteria: str = ""
-    mode: str = "good"          # 'good' | 'bad'
-    reward_usdc: float = 5.0
-    max_jobs: int = 1
+def _services_active() -> bool:
+    return any(not t.done() for t in _bg_tasks)
 
 
 def _artifacts() -> list[dict]:
@@ -161,10 +155,10 @@ def health() -> dict:
         "usdc": config.USDC_ADDRESS,
         "participants": [p.public() for p in pool],
         "providers": len(registry.providers(pool)),
-        "run": {k: _state[k] for k in ("active", "run_id", "mode", "started_at")},
-        "trigger_protected": bool(_TOKEN),
+        "evaluators": len(registry.evaluators()),
         "register_protected": bool(_REGISTER_TOKEN),
-        "watcher": {"enabled": _WATCHER_ENABLED, "active": _watcher_active()},
+        "platform_agents": _PLATFORM_AGENTS,
+        "watcher": {"enabled": _WATCHER_ENABLED, "active": _services_active()},
     }
 
 
@@ -184,36 +178,6 @@ def run_one(job_id: int) -> dict:
         if r.get("job_id") == job_id:
             return r
     raise HTTPException(status_code=404, detail=f"no run artifact for job {job_id}")
-
-
-async def _run(body: TriggerBody) -> None:
-    try:
-        tasks = ([{"task": body.task, "criteria": body.criteria}] if body.task
-                 else autonomous._default_tasks())
-        out = await autonomous.run_market(tasks, mode=body.mode, reward_usdc=body.reward_usdc,
-                                          max_jobs=body.max_jobs)
-        _state["run_id"] = out.get("run_id")
-        log.info("[server] run complete: %s", out.get("run_id"))
-    except Exception as e:  # surface, don't hide
-        _state["last_error"] = f"{type(e).__name__}: {e}"
-        log.exception("[server] run failed")
-    finally:
-        _state["active"] = False
-
-
-@app.post("/trigger")
-async def trigger(body: TriggerBody, authorization: str = Header(default="")) -> dict:
-    _require_token(authorization, _TOKEN)
-    if _state["active"]:
-        raise HTTPException(status_code=409, detail="a run is already active")
-    if body.mode not in ("good", "bad"):
-        raise HTTPException(status_code=400, detail="mode must be 'good' or 'bad'")
-    global _task
-    _state.update({"active": True, "run_id": None, "started_at": int(time.time()),
-                   "mode": body.mode, "last_error": None})
-    _task = asyncio.create_task(_run(body))
-    return {"accepted": True, "mode": body.mode, "reward_usdc": body.reward_usdc,
-            "max_jobs": body.max_jobs, "poll": "/runs"}
 
 
 # ── Open Marketplace API ────────────────────────────────────────────────────

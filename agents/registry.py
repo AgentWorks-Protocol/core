@@ -146,8 +146,21 @@ def _from_directory_file() -> list[Participant]:
 
 
 def directory() -> list[dict]:
-    """The public discovery directory for GET /marketplace/directory (records as stored, no secrets)."""
-    return _read_directory()
+    """The ONE canonical public participant list for GET /marketplace/directory — env platform-operated +
+    custodial + keyless self-registered, every role. No secrets (public() never includes api_key). Keyless
+    rows are enriched with their self-reported pact status. This is the single source of truth the dashboard
+    (DirectoryPanel + the PostJob committee picker) reads, so no surface can under-report participants."""
+    keyless = {str(r.get("address", "")).lower(): r for r in _read_directory()}
+    out: list[dict] = []
+    for p in load_pool():
+        row = p.public()
+        k = keyless.get(p.address.lower())
+        if k:
+            row["pact_status"] = k.get("pact_status")
+            row["pact_id"] = k.get("pact_id")
+            row["registered_at"] = k.get("registered_at")
+        out.append(row)
+    return out
 
 
 def load_pool() -> list[Participant]:
@@ -186,6 +199,13 @@ def load_pool() -> list[Participant]:
     # api_key → auto-drivable) wins over a keyless directory row for the same address.
     seen = {p.address.lower() for p in pool}
     for p in _from_directory_file():
+        if p.address.lower() not in seen:
+            pool.append(p)
+            seen.add(p.address.lower())
+    # The env-configured evaluator COMMITTEE (CAW_EVALUATOR_*) is produced ONLY by evaluators(); merge it so
+    # /health, /marketplace/participants, and the directory all report the committee. (Custodial/keyless
+    # evaluators are already in the pool via the merges above; the address dedupe drops the overlap.)
+    for p in evaluators():
         if p.address.lower() not in seen:
             pool.append(p)
             seen.add(p.address.lower())
@@ -238,9 +258,10 @@ def evaluators() -> list[Participant]:
                 out.append(Participant(name=f"Evaluator {chr(64 + n)}", role="evaluator",  # Evaluator A, B, C…
                                        wallet_id=wid, api_key=key, address=addr))
                 n += 1
-    # merge keyless directory evaluators (self-driven), deduped by address against the env committee
+    # merge CUSTODIAL (registry.local.json) + KEYLESS (registry.directory.json) evaluators, deduped by
+    # address against the env committee. (Custodial evaluators are auto-drivable; keyless self-vote.)
     seen = {p.address.lower() for p in out}
-    for p in _from_directory_file():
+    for p in _from_local_file() + _from_directory_file():
         if p.role == "evaluator" and p.address.lower() not in seen:
             out.append(p)
             seen.add(p.address.lower())

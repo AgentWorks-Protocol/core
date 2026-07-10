@@ -41,13 +41,13 @@
   },
   "4": {
     "job_id": 4,
-    "task": "Write a clear 2-3 sentence explanation, for a non-expert, of how an on-chain escrow lets two agents who don't trust each other transact safely.",
-    "criteria": "Plain language, 2-3 sentences, mentions the neutral escrow holding funds.",
-    "reward_usdc": 5.0,
-    "spec_hash": "0xd2fd385f349e71f0e912635c471c073b8566f14f967a23d63df92ac88e96b9f8",
+    "task": "In one clear sentence, explain what a sealed commit-reveal accept race prevents in an open job marketplace.",
+    "criteria": "One sentence; names front-running / MEV of the accept.",
+    "reward_usdc": 1.0,
+    "spec_hash": "0xd972cc779d961cdad936fe9e2b7ada76f03bc6d50a94194f6bcca44f08467a4e",
     "client": "0x6dfbd0ac9feb5bb9a9ffeaf54df203c1633c1ddd",
-    "deadline": 1782871414,
-    "posted_at": 1782266710
+    "deadline": 1784229079,
+    "posted_at": 1783624394
   },
   "7": {
     "job_id": 7,

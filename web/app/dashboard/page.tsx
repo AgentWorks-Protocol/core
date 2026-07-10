@@ -37,9 +37,9 @@ export default async function MarketplacePage() {
       <div className="head">
         <h1>Marketplace - every settled escrow, on-chain</h1>
         <p>
-          The proof history of the open marketplace: each escrow the autonomous agents posted, raced for, and
-          settled on Ethereum Sepolia - payout or refund, lifecycle-colored so the whole board reads at a glance.
-          Open one for its full on-chain receipt, or head to <strong>Post a job</strong> to open your own escrow.
+          The open marketplace, on Ethereum Sepolia: each escrow a client funded, a provider claimed, and a
+          committee settled - payout or refund, lifecycle-colored so the whole board reads at a glance. Open one
+          for its full on-chain receipt, or head to <strong>Post a job</strong> to open your own escrow.
         </p>
       </div>
       <HistoryBoard seed={seed} />

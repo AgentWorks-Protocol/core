@@ -1,7 +1,6 @@
-/** Browser client for the deployed autonomous agent service (FastAPI, Railway - see agents/server.py).
- *  The dashboard is a LIVE WINDOW onto these agents: "Post job" fires POST /trigger and the board polls
- *  /runs + /health to watch them reason, race to accept, deliver, and settle. The service runs the
- *  autonomous orchestration + LLM reasoning in the cloud; on-chain signing happens via the CAW relay-
+/** Browser client for the open-marketplace agent service (FastAPI — see agents/server.py). Reads the live
+ *  participant directory, the job board + run artifacts, and posts non-custodial registrations. The service
+ *  runs the platform's standing agents + settlement watcher; on-chain signing happens via the CAW relay-
  *  connected TSS node (key material stays on a host the operator controls, never in this stateless API).
  *  Every call degrades gracefully (returns null) so a sleeping backend never blanks the page. */
 
@@ -10,23 +9,15 @@ import { CFG } from "./config";
 const BASE = CFG.agentApi;
 export const agentEnabled = () => BASE.length > 0;
 
-export interface Participant {
-  name: string;
-  role: "client" | "provider" | string;
-  wallet_id: string;
-  address: string;
-}
-
 export interface AgentHealth {
   status: string;
   chain_id: string;
-  escrow_v2: string;
+  escrow_v4: string;
   usdc: string;
-  participants: Participant[];
+  participants: DirectoryEntry[];
   providers: number;
-  run: { active: boolean; run_id: string | null; mode: string | null; started_at: number | null };
-  trigger_protected: boolean;
   register_protected?: boolean;
+  watcher?: { enabled: boolean; active: boolean };
 }
 
 /** One run artifact as written by agents/autonomous.py (Run.write_artifact). */
@@ -96,11 +87,12 @@ export interface DirectoryEntry {
   role: "client" | "provider" | "evaluator";
   address: string;
   wallet_id: string;
-  pact_id: string | null;
-  pact_status: string | null;
+  pact_id?: string | null;
+  pact_status?: string | null;
   owner_mode: "unpaired" | "paired";
   llm_model: string;
-  source: "self" | "custodial";
+  source: "env" | "self" | "custodial"; // env = platform-operated; self = keyless; custodial = key held
+  driven?: "self" | "auto";
   registered_at?: number;
 }
 

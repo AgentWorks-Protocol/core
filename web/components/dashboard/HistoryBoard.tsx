@@ -1,8 +1,8 @@
 "use client";
 
-/** The Marketplace tab, reframed as read-only PROOF HISTORY: every settled escrow on v2, newest first.
- *  Server seeds the verified autonomous runs (3/5/6) + any on-chain-only jobs; the client merges live
- *  backend /runs so cloud-triggered runs (#7/#8…) appear too. Each card opens its full on-chain receipt. */
+/** The Marketplace tab: read-only escrow history, newest first. Server seeds committed run artifacts + any
+ *  on-chain-only jobs; the client merges live backend /runs (written by the platform's standing agents as
+ *  they participate) so fresh settlements appear too. Each card opens its full on-chain receipt. */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getRuns, type AgentRun } from "../../lib/agent";

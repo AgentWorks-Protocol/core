@@ -200,110 +200,16 @@ async def _load_deliverable(w3: Web3, rec: dict, job: dict) -> str | None:
     return None
 
 
-# ── client loop ─────────────────────────────────────────────────────────────
+# ── provider worker (one per provider ADDRESS; bound to ITS OWN wallet's pact) ──
 
-async def client_loop(run: Run, tasks: list[dict], reward_usdc: float, committee: list[str]) -> None:
-    cc = config.client_agent()
-    w3 = esc.web3()
-    quorum = config.COMMITTEE_QUORUM
-    async with CawWallet(api_url=config.CAW_API_URL, api_key=cc.api_key,
-                         wallet_uuid=cc.wallet_id, name="Client") as cw:
-        await _revoke_active(cw)
-        sub = await cw.submit_pact(intent="Client funds + finalizes open marketplace jobs",
-                                   spec=pacts.client_escrow_pact(escrow=config.ESCROW_V4_ADDRESS,
-                                                                 usdc=config.USDC_ADDRESS),
-                                   name=f"auto-client-{run.run_id}")
-        pact = await cw.wait_pact_active(sub.get("pact_id"))
-        async with cw.scoped(pact) as client:
-            amt_base = int(round(reward_usdc * 1_000_000))
-            created: set[int] = set()  # jobs THIS client created — finalize (+ count toward run.target) only these
-
-            # 1) post every task the client decides to fund — naming the evaluator committee
-            for t in tasks:
-                spec = _spec_text(t)
-                decision = await asyncio.to_thread(reasoning.client_decide_fund, spec, reward_usdc, BUDGET_USDC)
-                if not decision.get("fund"):
-                    log.info("[client] declined task %r: %s", t["task"][:40], decision.get("reason"))
-                    continue
-                job_id = esc.next_job_id(w3)
-                spec_hash = Web3.keccak(text=f"{spec}#{job_id}")
-                deadline = int(time.time()) + 7 * 24 * 3600
-                rec = run.record(job_id)
-                rec.update({"task": t["task"], "criteria": t.get("criteria", ""),
-                            "amount_usdc": reward_usdc, "client": cc.address,
-                            "fund_decision": decision, "spec_hash": Web3.to_hex(spec_hash),
-                            "committee": committee, "quorum": quorum})
-                rec["txs"]["createJob"] = await _call(client, cc.address, config.ESCROW_V4_ADDRESS,
-                    esc.create_job(committee, quorum, amt_base, spec_hash, deadline), "createJob")
-                rec["txs"]["approve"] = await _call(client, cc.address, config.USDC_ADDRESS,
-                    esc.approve(config.ESCROW_V4_ADDRESS, amt_base), "approve")
-                rec["txs"]["fund"] = await _call(client, cc.address, config.ESCROW_V4_ADDRESS,
-                    esc.fund(job_id), "fund")
-                rec["status"] = "funded"
-                _post_listing(job_id, task=t["task"], criteria=t.get("criteria", ""),
-                              reward_usdc=reward_usdc, spec_hash=Web3.to_hex(spec_hash),
-                              client=cc.address, deadline=deadline)
-                created.add(job_id)
-                run.write_artifact(job_id)
-                log.info("[client] posted + funded open job #%s (%s USDC), committee=%s quorum=%s",
-                         job_id, reward_usdc, [c[:8] for c in committee], quorum)
-
-            # 2) FINALIZE: once the committee has tentatively Resolved a job and its dispute window
-            #    elapses with no dispute, execute the outcome. (Disputes escalate to the arbiter; in
-            #    'good'/'bad' runs the committee outcome stands.)
-            rounds = 0
-            while not run.stop.is_set():
-                for job_id in list(created):  # only the jobs THIS client created (external jobs → the watcher)
-                    rec = run.jobs[job_id]
-                    if rec.get("branch"):
-                        continue
-                    job = await asyncio.to_thread(esc.get_job, w3, job_id)
-                    if job["status"] != "Resolved":
-                        continue
-                    v = await asyncio.to_thread(esc.get_vote, w3, job_id)
-                    rec["tentative"] = "payout" if v["tentative_payout"] else "refund"
-                    # wait out the dispute window before finalizing
-                    window_end = int(v["resolved_block"]) + config.DISPUTE_WINDOW_BLOCKS
-                    head = await asyncio.to_thread(lambda: w3.eth.block_number)
-                    if head <= window_end:
-                        continue  # still disputable; check again next round
-                    rec["txs"]["finalize"] = await _call(client, cc.address, config.ESCROW_V4_ADDRESS,
-                        esc.finalize(job_id), "finalize")
-                    final = await asyncio.to_thread(esc.get_job, w3, job_id)
-                    rec["final_status"] = final["status"]
-                    rec["branch"] = "payout" if final["status"] == "Completed" else "refund"
-                    rec["verdict"] = {"accept": rec["branch"] == "payout",
-                                      "reason": f"committee {v['approve']}-{v['reject']} (quorum {rec.get('quorum')})"}
-                    if rec.get("irys"):
-                        _text = await _load_deliverable(w3, rec, final)
-                        rec["content_verified"] = (
-                            _text is not None
-                            and irys_store.keccak(_text.encode("utf-8")) == final["deliverable_hash"]
-                        )
-                    rec["status"] = "settled"
-                    run.settled += 1
-                    run.write_artifact(job_id)
-                    log.info("[client] finalized job #%s -> %s (committee %s-%s)",
-                             job_id, rec["branch"], v["approve"], v["reject"])
-                    if run.settled >= run.target:
-                        run.stop.set()
-                        return
-                rounds += 1
-                if rounds > 240:  # ~16 min safety (committee voting + dispute window + relay latency)
-                    log.warning("[client] giving up after %d rounds", rounds)
-                    run.stop.set()
-                    return
-                await asyncio.sleep(POLL)
-
-
-# ── provider worker (one per provider identity; share the provider wallet's pact) ──
-
-async def provider_worker(run: Run, name: str, addr: str, pact: dict, reward_usdc: float) -> None:
-    pp = config.provider_agent()
+async def provider_worker(run: Run, name: str, addr: str, api_key: str, wallet_id: str, pact: dict) -> None:
+    """Continuously discover open jobs, reason about each, and race the sealed accept for the ones worth it,
+    then deliver. Signs from the provider's OWN wallet (api_key/wallet_id) — so a separate-wallet or custodial
+    provider is driven correctly, not silently dropped. The reward it reasons over is the job's own listing."""
     w3 = esc.web3()
     attempted: set[int] = set()
-    async with CawWallet(api_url=config.CAW_API_URL, api_key=pp.api_key,
-                         wallet_uuid=pp.wallet_id, name=name) as pw_root:
+    async with CawWallet(api_url=config.CAW_API_URL, api_key=api_key,
+                         wallet_uuid=wallet_id, name=name) as pw_root:
         async with pw_root.scoped(pact, name_suffix="") as pw:
             while not run.stop.is_set():
                 # Discover via the off-chain board (only written AFTER a job is funded), so we never
@@ -325,7 +231,8 @@ async def provider_worker(run: Run, name: str, addr: str, pact: dict, reward_usd
                     if not listing:
                         continue
                     spec = _spec_text(listing)
-                    decision = await asyncio.to_thread(reasoning.provider_decide_accept, spec, reward_usdc,
+                    reward = float(listing.get("reward_usdc") or (job["amount"] / 1_000_000))
+                    decision = await asyncio.to_thread(reasoning.provider_decide_accept, spec, reward,
                                                        provider_name=name)
                     rec["accept_decisions"][name] = decision
                     if not decision.get("accept"):
@@ -374,8 +281,7 @@ async def provider_worker(run: Run, name: str, addr: str, pact: dict, reward_usd
                     log.info("[%s] WON job #%s -> revealAccept %s", name, job_id, reveal_tx)
 
                     # do the work, store on Irys, submit
-                    deliverable = await asyncio.to_thread(reasoning.provider_do_task, spec,
-                                                          sabotage=(run.mode == "bad"))
+                    deliverable = await asyncio.to_thread(reasoning.provider_do_task, spec)
                     rec["deliverable"] = deliverable
                     dhash = Web3.keccak(text=deliverable)
                     irys = await asyncio.to_thread(irys_store.upload, deliverable,
@@ -471,70 +377,89 @@ async def committee_worker(run: Run, member: "registry.Participant", vote_lock: 
                 await asyncio.sleep(POLL)
 
 
-# ── orchestrator ─────────────────────────────────────────────────────────────
+# ── standing platform services (the platform's own agents participate continuously) ──
 
-async def run_market(tasks: list[dict], *, mode: str = "good", reward_usdc: float = 5.0,
-                     max_jobs: int = 1) -> dict:
-    run = Run(mode=mode, target=max_jobs)
-    pp = config.provider_agent()
+async def provider_service(run: Run) -> None:
+    """Standing provider participation: for each AUTO-DRIVABLE provider WALLET, onboard its provider Pact once
+    and run one worker per address on it. Workers chain-discover ANY open job and race the sealed accept, so a
+    separate-wallet (CAW_PROVIDER2_*) or custodial provider is driven too — not silently dropped. Keyless
+    (self-driven) providers are excluded here; they act via the calldata rail / MCP against the same jobs."""
+    by_wallet: dict[str, list[registry.Participant]] = {}
+    for p in registry.providers():
+        if p.is_self_driven:
+            continue
+        by_wallet.setdefault(p.wallet_id, []).append(p)
+    if not by_wallet:
+        log.info("[provider-svc] no auto-drivable providers configured; skipping")
+        return
+    workers = []
+    for wallet_id, members in by_wallet.items():
+        try:
+            async with CawWallet(api_url=config.CAW_API_URL, api_key=members[0].api_key,
+                                 wallet_uuid=wallet_id, name=members[0].name) as root:
+                await _revoke_active(root)
+                sub = await root.submit_pact(intent="Providers accept + deliver marketplace jobs",
+                    spec=pacts.provider_pact(escrow=config.ESCROW_V4_ADDRESS),
+                    name=f"platform-provider-{wallet_id[:8]}")
+                pact = await root.wait_pact_active(sub.get("pact_id"))
+        except Exception as e:  # noqa: BLE001 - a bad wallet shouldn't take down the whole service
+            log.warning("[provider-svc] onboard wallet %s… failed (%s); skipping", wallet_id[:8], type(e).__name__)
+            continue
+        for m in members:
+            workers.append(provider_worker(run, m.name, m.address, m.api_key, m.wallet_id, pact))
+    log.info("[provider-svc] %d provider worker(s) live", len(workers))
+    if workers:
+        await asyncio.gather(*workers)
 
-    # provider identities to AUTO-DRIVE: only ones whose api_key we hold (first-party/custodial) and that
-    # share the canonical provider wallet+pact. Keyless directory providers are SELF-DRIVEN (they race via the
-    # calldata rail / MCP against the same open jobs) and are never spawned here — bool(api_key) is the split.
-    pool = registry.providers()
-    provider_ids = [(p.name, p.address) for p in pool
-                    if not p.is_self_driven and p.wallet_id == pp.wallet_id] or [("Provider", pp.address)]
-    # evaluator COMMITTEE to AUTO-DRIVE: each member is its OWN CAW wallet + OWN model, so a quorum is a genuine
-    # M-of-N of independent judges. Keyless (self-driven) evaluators are excluded here — they self-vote.
-    committee = [m for m in registry.evaluators() if not m.is_self_driven][:config.COMMITTEE_SIZE]
-    if not committee:
-        raise RuntimeError("no evaluator committee configured (set CAW_EVALUATOR_1_WALLET_ID/_API_KEY/_ADDRESS "
-                           "[+ _LLM_*] per member in .env, odd count >= COMMITTEE_SIZE)")
-    committee_addrs = [m.address for m in committee]
-    log.info("[market] providers: %s | committee: %s", provider_ids,
-             [(m.name, m.address[:8], m.wallet_id[:8], m.llm()["model"]) for m in committee])
 
-    # onboard the provider wallet's pact ONCE; all provider worker addresses bind to it
-    async with CawWallet(api_url=config.CAW_API_URL, api_key=pp.api_key,
-                         wallet_uuid=pp.wallet_id, name="Provider") as pw_root:
-        await _revoke_active(pw_root)
-        psub = await pw_root.submit_pact(intent="Providers accept + deliver marketplace jobs",
-                                         spec=pacts.provider_pact(escrow=config.ESCROW_V4_ADDRESS),
-                                         name=f"auto-provider-{run.run_id}")
-        ppact = await pw_root.wait_pact_active(psub.get("pact_id"))
+async def committee_service(run: Run) -> None:
+    """Standing committee participation: one worker per AUTO-DRIVABLE evaluator. Each self-onboards its own
+    castVote-only Pact and votes on any Submitted job whose on-chain committee names it. Keyless evaluators
+    self-vote via the calldata rail and are excluded here."""
+    members = [m for m in registry.evaluators() if not m.is_self_driven]
+    if not members:
+        log.info("[committee-svc] no auto-drivable evaluators configured; skipping")
+        return
+    vote_lock = asyncio.Lock()  # serialize casts: correct gas for the quorum-reaching vote
+    log.info("[committee-svc] %d committee worker(s) live: %s", len(members),
+             [(m.name, m.address[:8], m.llm()["model"]) for m in members])
+    await asyncio.gather(*[committee_worker(run, m, vote_lock) for m in members])
 
-    vote_lock = asyncio.Lock()  # committee casts go one-at-a-time (correct gas for the resolving vote)
-    await asyncio.gather(
-        client_loop(run, tasks, reward_usdc, committee_addrs),
-        *[provider_worker(run, name, addr, ppact, reward_usdc) for name, addr in provider_ids],
-        *[committee_worker(run, m, vote_lock) for m in committee],
-    )
-    return {"run_id": run.run_id, "settled": run.settled,
-            "jobs": {jid: r for jid, r in run.jobs.items()}}
+
+async def platform_agents(stop: asyncio.Event | None = None) -> None:
+    """Run the platform's own provider + committee as STANDING participants in the open marketplace — they
+    claim + settle jobs posted by anyone (external clients via calldata/MCP, or the operator), not just a demo
+    run. Gated by PLATFORM_AGENTS + wallet presence. Settlement/finalize is the separate settlement_watcher."""
+    run = Run(mode="live", target=10**9)
+    if stop is not None:
+        run.stop = stop
+    log.info("[platform] standing provider + committee services starting")
+    await asyncio.gather(provider_service(run), committee_service(run))
 
 
 # ── settlement watcher (standing liveness; settles EXTERNAL jobs the platform doesn't drive) ──
 
 def has_first_party_signer() -> bool:
-    """True if a first-party wallet is configured to sign the (permissionless) settlement steps."""
+    """True if a wallet is configured to sign the (permissionless) settlement steps."""
     try:
-        config.client_agent()
+        config.watcher_agent()
         return True
     except Exception:
         return False
 
 
 async def _settlement_sweep(w3: Web3, signer, src_addr: str, *, max_scan: int = 60) -> None:
-    """One pass: execute the permissionless settlement step each recent job is due for. Every step is
-    outcome-NEUTRAL — it executes the committee's already-decided result or the contract's anti-freeze
-    rule, and is callable by anyone — so this is liveness, not an operator ruling. Reverts (someone else
-    settled first, window not truly elapsed) are expected and skipped."""
+    """One pass: execute the PERMISSIONLESS settlement step each recent job is due for — finalize (Resolved
+    past dispute window), forceResolve (stalled Submitted), resolveTimeout (Disputed, arbiter silent). Every
+    step is outcome-NEUTRAL: it executes the committee's already-decided result or the contract's anti-freeze
+    rule, and any address may call it — so this is liveness, not an operator ruling. (claimRefund is NOT here:
+    the contract restricts it to the job's client, so an external client reclaims via /refund-calldata.)
+    Reverts — someone else settled first, or the window isn't truly elapsed — are expected and skipped."""
     try:
         n = await asyncio.to_thread(esc.next_job_id, w3)
     except Exception:
         return
     head = await asyncio.to_thread(lambda: w3.eth.block_number)
-    now = int(time.time())
     for jid in range(max(1, n - max_scan), n):
         try:
             job = await asyncio.to_thread(esc.get_job, w3, jid)
@@ -559,9 +484,9 @@ async def _settlement_sweep(w3: Web3, signer, src_addr: str, *, max_scan: int = 
                     await _call(signer, src_addr, config.ESCROW_V4_ADDRESS, esc.resolve_timeout(jid),
                                 "watcher.resolveTimeout")
                     log.info("[watcher] resolveTimeout'd job #%s (arbiter silent past resolve window)", jid)
-            elif st in ("Funded", "Accepted") and job["deadline"] and now > int(job["deadline"]):
-                await _call(signer, src_addr, config.ESCROW_V4_ADDRESS, esc.claim_refund(jid), "watcher.claimRefund")
-                log.info("[watcher] claimRefunded expired job #%s", jid)
+            # NB: expired Funded/Accepted jobs are NOT refunded here — claimRefund is client-only on-chain
+            # (msg.sender == job.client), so it would always revert for external jobs. The client reclaims
+            # via GET /marketplace/jobs/{id}/refund-calldata.
         except Exception as e:  # revert or transient — someone else settled, or the window isn't truly up
             log.debug("[watcher] job #%s (%s) step skipped (%s)", jid, st, type(e).__name__)
 
@@ -575,9 +500,9 @@ async def settlement_watcher(*, poll: float = 15.0, stop: asyncio.Event | None =
     the external client's GET /marketplace/jobs/{id}/finalize-calldata."""
     stop = stop or asyncio.Event()
     if not has_first_party_signer():
-        log.info("[watcher] no first-party signer configured; external jobs settle via finalize-calldata")
+        log.info("[watcher] no signer configured; external jobs settle via finalize-calldata")
         return
-    cc = config.client_agent()
+    cc = config.watcher_agent()  # DEDICATED wallet (CAW_WATCHER_*, else client) so a client op can't revoke it
     w3 = esc.web3()
     log.info("[watcher] settlement watcher started (signer %s…, poll %ss)", cc.wallet_id[:8], poll)
     while not stop.is_set():
@@ -600,28 +525,18 @@ async def settlement_watcher(*, poll: float = 15.0, stop: asyncio.Event | None =
             await asyncio.sleep(poll)
 
 
-def _default_tasks() -> list[dict]:
-    return [{
-        "task": "Write a clear 2-3 sentence explanation, for a non-expert, of how an on-chain escrow "
-                "lets two agents who don't trust each other transact safely.",
-        "criteria": "Plain language, 2-3 sentences, mentions the neutral escrow holding funds.",
-    }]
-
-
 def main() -> None:
+    """Run the platform's own agents as STANDING participants (provider + committee) plus the settlement
+    watcher — the same services the deployed agent service launches at startup. Clients post jobs via their own
+    wallet (MCP `post_job` / the calldata rail), not from here."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
-    ap = argparse.ArgumentParser(description="AgentWorks autonomous open-marketplace agents")
-    ap.add_argument("--mode", choices=["good", "bad"], default="good")
-    ap.add_argument("--reward", type=float, default=5.0, help="reward per job in USDC")
-    ap.add_argument("--max-jobs", type=int, default=1, help="stop after this many jobs settle")
-    ap.add_argument("--task", default=None, help="single task text (else a default task)")
-    ap.add_argument("--criteria", default="", help="acceptance criteria for --task")
-    args = ap.parse_args()
+    argparse.ArgumentParser(description="AgentWorks standing platform agents").parse_args()
 
-    tasks = ([{"task": args.task, "criteria": args.criteria}] if args.task else _default_tasks())
-    out = asyncio.run(run_market(tasks, mode=args.mode, reward_usdc=args.reward, max_jobs=args.max_jobs))
-    print("\n=== RUN SUMMARY ===")
-    print(json.dumps(out, default=str, indent=2))
+    async def _run() -> None:
+        stop = asyncio.Event()
+        await asyncio.gather(platform_agents(stop), settlement_watcher(stop=stop))
+
+    asyncio.run(_run())
 
 
 if __name__ == "__main__":

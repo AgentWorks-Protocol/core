@@ -19,10 +19,10 @@ export const CFG = {
   // still reads it so those historical jobs resolve their status + settling tx.
   escrowV4Prev: env("NEXT_PUBLIC_ESCROW_V4_PREV_ADDRESS", "0x8F60e34e43Dd53Bd170633fB5b1d8c43e21C264C") as `0x${string}`,
   umaArbiter: env("NEXT_PUBLIC_UMA_ARBITER", "0x850121Aa89C1C6d759F2751E01e8888e412a7a42") as `0x${string}`,
-  // Deployed autonomous agent service (DigitalOcean droplet, co-located with the TSS signer). The dashboard
-  // is a live window onto these agents: "Post job" fires POST /trigger and the board watches them reason +
-  // settle. Reads proxy through /api/agent/* (same-origin) so an HTTPS page can reach the HTTP service.
-  // Empty → live-trigger UI hidden. Override per-env with NEXT_PUBLIC_AGENT_API.
+  // Open-marketplace agent service (DigitalOcean droplet, co-located with the TSS signer). It runs the
+  // platform's standing agents + settlement watcher and serves the marketplace directory + calldata rail.
+  // Reads proxy through /api/agent/* (same-origin) so an HTTPS page can reach the HTTP service. Override
+  // per-env with NEXT_PUBLIC_AGENT_API.
   agentApi: env("NEXT_PUBLIC_AGENT_API", "http://139.59.135.74:8000").replace(/\/$/, ""),
   usdc: env("NEXT_PUBLIC_USDC_ADDRESS", "0x4C4D1223BcC47E380CF4C37652EaDFe10A9Fd910") as `0x${string}`,
   clientCaw: env("NEXT_PUBLIC_CLIENT_CAW", "0x6dfbd0ac9feb5bb9a9ffeaf54df203c1633c1ddd") as `0x${string}`,
@@ -31,7 +31,6 @@ export const CFG = {
   providerCawB: env("NEXT_PUBLIC_PROVIDER_CAW_B", "0x7ea0701d657e3427c2bb3bc195e943a81c5fc69e") as `0x${string}`,
   explorer: env("NEXT_PUBLIC_EXPLORER_BASE", "https://sepolia.etherscan.io"),
   irysGateway: env("NEXT_PUBLIC_IRYS_GATEWAY", "https://devnet.irys.xyz"),
-  enableLiveRun: env("NEXT_PUBLIC_ENABLE_LIVE_RUN", "1") !== "0",
 };
 
 export const txUrl = (h: string) => `${CFG.explorer}/tx/${h}`;
