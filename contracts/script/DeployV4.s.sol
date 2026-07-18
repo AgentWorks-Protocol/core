@@ -10,7 +10,8 @@ import {AgentWorksUmaArbiter} from "../src/AgentWorksUmaArbiter.sol";
 ///         address that can rule disputes — no operator EOA. See docs/ARBITRATION.md.
 /// @dev Env: DEPLOYER_PRIVATE_KEY, USDC_TOKEN_ADDRESS (escrow settlement token = MockUSDC), and optionally
 ///      UMA_OOV3_ADDRESS (default Sepolia OOv3), UMA_BOND_CURRENCY (default Sepolia UMA USDC), UMA_BOND
-///      (default 400e6 = OOv3 minimum), UMA_LIVENESS (default 7200s), plus the escrow windows.
+///      (default 400e6 = OOv3 minimum), UMA_LIVENESS (default 7200s), the escrow windows, and
+///      SECONDS_PER_BLOCK (default 12 = Ethereum; set 2 for Base — bounds the resolve window vs liveness).
 contract DeployV4 is Script {
     // UMA OOv3 on Ethereum Sepolia (verified): see docs.uma.xyz network addresses.
     address constant UMA_OOV3_SEPOLIA = 0xFd9e2642a170aDD10F53Ee14a93FcF2F31924944;
@@ -36,10 +37,14 @@ contract DeployV4 is Script {
             _u("REVEAL_WINDOW_BLOCKS", 256),
             _u("VOTING_WINDOW_BLOCKS", 600),
             _u("DISPUTE_WINDOW_BLOCKS", 50),
-            // Must span the arbiter liveness (7200s / 12s-per-block = 600 blocks) or the escrow ctor reverts
-            // ResolveWindowTooShort — so resolveTimeout can never preempt an honest UMA optimistic ruling.
+            // The resolve window must span the arbiter liveness in REAL SECONDS
+            // (blocks × SECONDS_PER_BLOCK ≥ liveness) or the escrow ctor reverts ResolveWindowTooShort — so
+            // resolveTimeout can never preempt an honest UMA optimistic ruling. On Ethereum (12s): 7200/12 = 600
+            // blocks min (default 700 = comfortable margin). ON BASE set SECONDS_PER_BLOCK=2 and scale this to
+            // ≥ liveness/2 (7200/2 = 3600 blocks); every other block-count window must be scaled for ~2s blocks too.
             _u("DISPUTE_RESOLVE_WINDOW_BLOCKS", 700),
-            address(arbiter)
+            address(arbiter),
+            _u("SECONDS_PER_BLOCK", 12) // deployment chain slot time: Ethereum ~12, Base ~2
         );
         // 3. One-shot wiring.
         arbiter.setEscrow(address(escrow));

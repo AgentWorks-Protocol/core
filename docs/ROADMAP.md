@@ -63,21 +63,34 @@ conservative per-job caps and a small committee bond; widen only after live jobs
 
 ## The Virtuals / ACP play
 
+> Full partnership + POC brief (handover-ready): **`docs/PARTNERSHIP_VIRTUALS.md`**.
+
 Virtuals is an agent-tokenization ecosystem on Base; its **Agent Commerce Protocol (ACP)** is the framework for
-agents to transact with each other. It's adjacent to us, which is exactly why it fits:
+agents to transact with each other. **Correction to an earlier assumption:** ACP already ships a settlement rail —
+its live model is four phases (Request → Negotiation → Transaction → **Evaluation**) across three roles
+(**Client, Provider, Evaluator**) with escrow held until an Evaluator verifies the work. So the old framing ("we're
+the money rail they lack") is dead. What ACP has is a **socket shaped exactly like us** — and it explicitly wants
+to seed *"a market for specialized evaluation agents."*
 
-- **They have supply** — many tokenized agents that need to pay and get paid.
-- **We have the safe money rail** they don't natively provide: escrow + sealed accept race + M-of-N committee
-  settlement + staked UMA disputes + **CAW Pact-bounded spend authority**.
+Two wedges, not one:
 
-The play is to **be the trustless settlement/escrow-with-guardrails layer for ACP agents**, not a competitor. An
-ACP job escrows through AgentWorks; our committee + dispute flow settles it; the CAW Pact guarantees no agent —
-compromised, hallucinating, or adversarial — exceeds its spend bounds. The pitch is the piece ACP lacks: *"agents
-transact — but who stops a compromised agent from draining funds, and who adjudicates a disputed deliverable?"*
+- **Wedge A — fill the Evaluator role, better.** ACP evaluation is a *single* evaluator agent (one decision, one
+  point of trust). We replace it, for high-value / adversarial jobs, with an **M-of-N committee + staked UMA
+  dispute + sealed commit-reveal**. Register as a premium, trust-minimized Evaluator jobs opt into.
+- **Wedge B — CAW Pact spend-safety (orthogonal, unique).** ACP escrow protects *a job's* funds; it does not
+  bound what an agent's *wallet* can do. **CAW Pacts are infra-enforced spend limits on the wallet itself** —
+  additive regardless of whose escrow settles the job. No one else in the ecosystem has this.
 
-**To validate before committing integration engineering:** does ACP already ship its own escrow/settlement? If
-so we're an alternative or an integration — and we win on the **safety story** (spend-bounding + M-of-N +
-decentralized dispute). Confirm what ACP settlement looks like today, and whether there's a partnership path.
+We complement ACP's payment leg (including its move toward **x402**) and compete on nothing — our surface is
+**adjudication + spend-safety**. The ACP Evaluation phase maps 1:1 onto our `castVote → Resolved → finalize`
+(+ `dispute → IArbiter`), so the integration is "ship an ACP-registered Evaluator agent that routes evaluation
+through the committee," plus CAW-wrapped wallets for ACP participants.
+
+**Load-bearing unknown to confirm jointly (before integration eng):** can an ACP job **name an external
+evaluator/adjudicator** at escrow time? That's the hook we slot into. Confirm the evaluator-registry mechanics
+(on-chain vote vs. off-chain signed attestation) and whether there's a grants / partnership path. First concrete
+step: a **Base-Sepolia POC** — one ACP-style job whose Evaluation phase is settled by our committee, with one live
+dispute → UMA (aligns with launch Phase 1).
 
 ## Beyond launch
 
@@ -105,8 +118,10 @@ liquidity + users.
 
 1. **Cobo:** is CAW Base fully GA for agentic wallets? Any chain-roadmap notes relevant to us.
 2. **UMA on Base:** exact OOv3 address + a whitelisted, liquid bond currency (real USDC?).
-3. **Virtuals/ACP:** does ACP already have escrow/settlement? Replace, wrap, or complement — and is there a
-   partnership/integration path?
+3. **Virtuals/ACP:** ACP *does* ship escrow + an Evaluator role (confirmed) — so the play is **complement** (be a
+   high-assurance Evaluator + CAW spend-safety), not replace. Open: can a job name an **external evaluator** at
+   escrow time, are verdicts on-chain or signed attestations, and is there a grants/partnership path? See
+   `docs/PARTNERSHIP_VIRTUALS.md`.
 4. **Base block time vs the `SECONDS_PER_BLOCK` invariant** — Phase 0, above.
 
 ## Sources

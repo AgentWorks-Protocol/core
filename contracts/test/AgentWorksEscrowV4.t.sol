@@ -61,6 +61,7 @@ contract AgentWorksEscrowV4Test is Test {
     uint64 internal constant VWIN = 50;   // voting window
     uint64 internal constant DWIN = 30;   // dispute window
     uint64 internal constant RSWIN = 50;  // dispute-resolve window
+    uint64 internal constant SPB = 12;    // seconds per block (Ethereum slot time)
     uint8  internal constant QUORUM = 2;  // 2-of-3
 
     uint64 internal deadline;
@@ -81,7 +82,7 @@ contract AgentWorksEscrowV4Test is Test {
     function setUp() public {
         usdc = new MockUSDC();
         arbiter = new MockArbiter();
-        escrow = new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, RSWIN, address(arbiter));
+        escrow = new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, RSWIN, address(arbiter), SPB);
         deadline = uint64(block.timestamp + 7 days);
         usdc.mint(client, 1_000_000_000);
         vm.prank(client);
@@ -145,27 +146,27 @@ contract AgentWorksEscrowV4Test is Test {
 
     function test_constructor_revertsZeroToken() public {
         vm.expectRevert(AgentWorksEscrowV4.ZeroAddress.selector);
-        new AgentWorksEscrowV4(address(0), DELAY, RWIN, VWIN, DWIN, RSWIN, address(arbiter));
+        new AgentWorksEscrowV4(address(0), DELAY, RWIN, VWIN, DWIN, RSWIN, address(arbiter), SPB);
     }
 
     function test_constructor_revertsZeroArbiter() public {
         vm.expectRevert(AgentWorksEscrowV4.ZeroAddress.selector);
-        new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, RSWIN, address(0));
+        new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, RSWIN, address(0), SPB);
     }
 
     function test_constructor_revertsZeroVotingWindow() public {
         vm.expectRevert(AgentWorksEscrowV4.InvalidWindow.selector);
-        new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, 0, DWIN, RSWIN, address(arbiter));
+        new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, 0, DWIN, RSWIN, address(arbiter), SPB);
     }
 
     function test_constructor_revertsZeroDisputeWindow() public {
         vm.expectRevert(AgentWorksEscrowV4.InvalidWindow.selector);
-        new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, 0, RSWIN, address(arbiter));
+        new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, 0, RSWIN, address(arbiter), SPB);
     }
 
     function test_constructor_revertsZeroResolveWindow() public {
         vm.expectRevert(AgentWorksEscrowV4.InvalidWindow.selector);
-        new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, 0, address(arbiter));
+        new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, 0, address(arbiter), SPB);
     }
 
     // ── resolve-window ↔ arbiter-liveness coupling (audit: resolveTimeout preemption) ──
@@ -174,12 +175,12 @@ contract AgentWorksEscrowV4Test is Test {
     function test_constructor_revertsResolveWindowShorterThanLiveness() public {
         MockArbiterWithLiveness a = new MockArbiterWithLiveness(7200);
         vm.expectRevert(AgentWorksEscrowV4.ResolveWindowTooShort.selector);
-        new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, 599, address(a));
+        new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, 599, address(a), SPB);
     }
 
     function test_constructor_okWhenResolveWindowCoversLiveness() public {
         MockArbiterWithLiveness a = new MockArbiterWithLiveness(7200);
-        AgentWorksEscrowV4 e = new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, 600, address(a));
+        AgentWorksEscrowV4 e = new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, 600, address(a), SPB);
         assertEq(e.disputeResolveWindowBlocks(), 600); // 600×12 == 7200, exactly covers liveness
     }
 
@@ -187,6 +188,26 @@ contract AgentWorksEscrowV4Test is Test {
     // the setUp escrow deployed with RSWIN=50 < 600 and did NOT revert.
     function test_constructor_skipsCouplingWhenArbiterHasNoLiveness() public view {
         assertEq(escrow.disputeResolveWindowBlocks(), RSWIN);
+    }
+
+    // P0 (Base launch): the guard must hold in REAL SECONDS at the DEPLOYMENT chain's block time, not a
+    // hardcoded 12s. On Base (~2s/block) a 7200s liveness needs ≥ 3600 blocks; 3599 (×2 = 7198s) under-covers
+    // and must revert — otherwise resolveTimeout could preempt an honest UMA ruling on Base.
+    function test_constructor_resolveWindowCoversLivenessInRealSeconds() public {
+        MockArbiterWithLiveness a = new MockArbiterWithLiveness(7200);
+        uint64 baseSpb = 2; // Base slot time
+        // 3599 blocks × 2s = 7198s < 7200s liveness → must revert.
+        vm.expectRevert(AgentWorksEscrowV4.ResolveWindowTooShort.selector);
+        new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, 3599, address(a), baseSpb);
+        // 3600 blocks × 2s = 7200s → exactly covers liveness at Base's block time.
+        AgentWorksEscrowV4 e = new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, 3600, address(a), baseSpb);
+        assertEq(e.disputeResolveWindowBlocks(), 3600);
+        assertEq(e.secondsPerBlock(), baseSpb);
+    }
+
+    function test_constructor_revertsZeroSecondsPerBlock() public {
+        vm.expectRevert(AgentWorksEscrowV4.InvalidSecondsPerBlock.selector);
+        new AgentWorksEscrowV4(address(usdc), DELAY, RWIN, VWIN, DWIN, RSWIN, address(arbiter), 0);
     }
 
     // ── createJob (committee) ──
@@ -767,7 +788,7 @@ contract AgentWorksEscrowV4Test is Test {
     function test_finalizeIsCEISafe() public {
         ReentrantToken evil = new ReentrantToken();
         MockArbiter arb = new MockArbiter();
-        AgentWorksEscrowV4 evilEscrow = new AgentWorksEscrowV4(address(evil), DELAY, RWIN, VWIN, DWIN, RSWIN, address(arb));
+        AgentWorksEscrowV4 evilEscrow = new AgentWorksEscrowV4(address(evil), DELAY, RWIN, VWIN, DWIN, RSWIN, address(arb), SPB);
         evil.mint(client, AMOUNT);
         vm.prank(client);
         evil.approve(address(evilEscrow), type(uint256).max);

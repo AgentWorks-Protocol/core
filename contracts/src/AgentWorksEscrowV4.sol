@@ -112,10 +112,12 @@ contract AgentWorksEscrowV4 {
 
     uint8 public constant MAX_COMMITTEE = 7; // gas bound on the createJob loop + uint8 tallies
 
-    /// @notice Assumed slot time used ONLY to bound the resolve window from below against the arbiter's
-    ///         liveness. Ethereum post-merge uses fixed 12s slots; a slot may be skipped (a block arrives
-    ///         LATER, never sooner), so `blocks * 12` is a safe lower bound on the window's real-time span.
-    uint64 public constant SECONDS_PER_BLOCK = 12;
+    /// @notice The deployment chain's slot time (seconds per block), used ONLY to bound the resolve window
+    ///         from below against the arbiter's liveness. Set PER-DEPLOYMENT (Ethereum ~12s, Base ~2s) so the
+    ///         guard is correct on any chain — hardcoding one chain's slot time silently under-protects on a
+    ///         faster chain. A slot may be skipped (a block arrives LATER, never sooner), so
+    ///         `blocks * secondsPerBlock` is a safe lower bound on the window's real-time span.
+    uint64 public immutable secondsPerBlock;
 
     uint256 public nextJobId = 1;
 
@@ -156,6 +158,7 @@ contract AgentWorksEscrowV4 {
     error ZeroAmount();
     error InvalidDeadline();
     error InvalidWindow();
+    error InvalidSecondsPerBlock(); // deployment chain slot time must be non-zero
     error JobNotFound(uint256 jobId);
     error BadStatus(Status have, Status want);
     error NotClient(address caller);
@@ -196,12 +199,14 @@ contract AgentWorksEscrowV4 {
         uint64 votingWindowBlocks_,
         uint64 disputeWindowBlocks_,
         uint64 disputeResolveWindowBlocks_,
-        address arbiter_
+        address arbiter_,
+        uint64 secondsPerBlock_
     ) {
         if (token_ == address(0) || arbiter_ == address(0)) revert ZeroAddress();
         if (revealDelayBlocks_ == 0 || revealWindowBlocks_ == 0) revert InvalidWindow();
         if (votingWindowBlocks_ == 0 || disputeWindowBlocks_ == 0 || disputeResolveWindowBlocks_ == 0)
             revert InvalidWindow();
+        if (secondsPerBlock_ == 0) revert InvalidSecondsPerBlock();
         token = IERC20(token_);
         revealDelayBlocks = revealDelayBlocks_;
         revealWindowBlocks = revealWindowBlocks_;
@@ -209,6 +214,7 @@ contract AgentWorksEscrowV4 {
         disputeWindowBlocks = disputeWindowBlocks_;
         disputeResolveWindowBlocks = disputeResolveWindowBlocks_;
         arbiter = arbiter_;
+        secondsPerBlock = secondsPerBlock_;
 
         // Couple the resolve-timeout window to the arbiter's liveness. {resolveTimeout} is an anti-freeze
         // backstop that enacts the committee's ORIGINAL tentative outcome once the window elapses — but if
@@ -217,7 +223,7 @@ contract AgentWorksEscrowV4 {
         // liveness() (the UMA adapter does), require the window to span at least that liveness so the arbiter
         // always gets to rule first. Adapters without a liveness (synchronous rulings) skip this guard.
         try IArbiterLiveness(arbiter_).liveness() returns (uint64 lv) {
-            if (lv != 0 && uint256(disputeResolveWindowBlocks_) * SECONDS_PER_BLOCK < lv) {
+            if (lv != 0 && uint256(disputeResolveWindowBlocks_) * secondsPerBlock_ < lv) {
                 revert ResolveWindowTooShort();
             }
         } catch {}
