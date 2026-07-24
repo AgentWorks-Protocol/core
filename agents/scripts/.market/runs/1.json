@@ -1,78 +1,57 @@
 {
-  "run_id": "8799d6be71",
+  "run_id": "ff6974f9cc",
   "job_id": 1,
   "txs": {
-    "createJob": "0xb5ef817c957c70ae31bf3d2135e8e2223e9b2ec1c967baa6a4e8de4aba73b624",
-    "approve": "0x737fcbfb7e1f54bb5c81d750f9f5d341c74bfcaaa87d413089aaabcf01c625fa",
-    "fund": "0xb6d126f2bf81863879d1c088b3154272eb1f35affbaad9824dd55903c4b71cf5",
-    "commitAccept": "0xae16e44263b4c40b0823b7afc69cb6b0e86156da73f3dd424dd09e63fd4b6097",
-    "revealAccept": "0x593287a873437206a1e51d4de7b95d826170fba379526afa9e124ef02cd83223",
-    "submitWork": "0x7249dbb5d3e43a8d0b211eb064f45348d79579f31b2a8b0fb7ffa714259f01fd",
-    "finalize": "0xcae19436fe62f09ccf2ef894b44d4b5cc809b242c719fc4c1c5b55a17cbad79e"
+    "commitAccept": "0xa734a706370cb9cebb22ea5a318d86baf9d59fa969c050e6d358ef60372f9510",
+    "revealAccept": "0xf454fa2a6eb8a6ae5b14910d49a0b8d0ce5151a3c8bbd3d7605f83c3fc0ca5c7",
+    "submitWork": "0xcc6667c77124bbe5f55ff9dc88b92cdff96339e7965233d677bbf7a6746a7efa"
   },
   "accept_decisions": {
     "Provider": {
       "accept": true,
-      "reason": "I can easily generate a concise, plain-language explanation meeting the criteria, and the reward is fair for the minimal effort required."
+      "reason": "The task is simple and the reward is adequate for a quick one-sentence explanation."
     }
   },
   "winner": "Provider",
   "winner_addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
   "irys": {
-    "id": "AXumFLGaEVkKmLp5HM6mK9rfTmEGekj5cTMb3k5A25Lv",
-    "url": "https://devnet.irys.xyz/AXumFLGaEVkKmLp5HM6mK9rfTmEGekj5cTMb3k5A25Lv",
-    "bytes": 435,
-    "price": "1460062202494",
+    "id": "2D1RtaTjvFfkTDys82Skx2JNr82So8yiyyimX3VJSFjv",
+    "url": "https://devnet.irys.xyz/2D1RtaTjvFfkTDys82Skx2JNr82So8yiyyimX3VJSFjv",
+    "bytes": 223,
+    "price": "1297889835055",
     "funded": "0"
   },
-  "deliverable": "An Mâ€‘ofâ€‘N committee of independent evaluators votes on agent actions, so that no single evaluator can make decisionsâ€”trust comes from needing a majority agreement. Additionally, a builtâ€‘in dispute window allows anyone to challenge a result onâ€‘chain before it is finalized, with a designated arbiter resolving conflicts. This twoâ€‘step safeguard ensures that outcomes are both democratically validated and open to correction.",
-  "committee": [
-    "0x48f2a3749a18684c31e322abef3e8e855c116f06",
-    "0x78cf963c21268eb384ba24e7c17eb6e5a4b7e5f1",
-    "0x124aec0d4f2782591b3be95b520f05779cb30ccb"
-  ],
+  "deliverable": "A sealed commit-reveal accept race prevents the front-running and MEV (Miner Extractable Value) manipulation of an accept transaction in an open job marketplace by hiding the acceptance details until after the reveal phase.",
+  "committee": [],
   "committee_votes": {
+    "Evaluator B": {
+      "addr": "0x78cf963c21268eb384ba24e7c17eb6e5a4b7e5f1",
+      "accept": true,
+      "reason": "The deliverable meets the acceptance criteria by providing a clear sentence that explains the prevention of front-running and MEV of the accept in an open job marketplace."
+    },
     "Evaluator A": {
       "addr": "0x48f2a3749a18684c31e322abef3e8e855c116f06",
       "accept": true,
-      "reason": "The deliverable explains in plain language how an M-of-N committee voting and an on-chain dispute window with arbiter make an autonomous agent marketplace trustworthy, meeting all acceptance criteria."
-    },
-    "Evaluator C": {
-      "addr": "0x124aec0d4f2782591b3be95b520f05779cb30ccb",
-      "accept": true,
-      "reason": "The explanation is clear, concise, uses plain language, and accurately covers all required elements within the specified sentence count."
+      "reason": "The deliverable is a single sentence that correctly names front-running and MEV of the accept as what the sealed commit-reveal race prevents."
     }
   },
   "vote_txs": {
-    "Evaluator A": "0x53c5b0ef5f851875ce0424a6753425c582fcb735a89c1672009b1bc6a2d56967",
-    "Evaluator C": "0x80080d0173e9fc6a68116dad381ba0dd28b4ccae361d3d1d6d31f7a772765263"
+    "Evaluator B": "0x2609ded52bc5974991eadfe84258bd49c3798f7e749b38d8af12049b0f151ce0",
+    "Evaluator A": "0x32965a27fbd43088c69ca3b3f4ad1d4eec5e26e5dd9aba00fd82a8bcbec2b250"
   },
-  "tentative": "payout",
-  "verdict": {
-    "accept": true,
-    "reason": "committee 2-0 (quorum 2)"
-  },
-  "branch": "payout",
-  "status": "settled",
-  "task": "Explain in 2-3 sentences, for a non-expert, how an M-of-N committee of independent AI evaluators plus an on-chain dispute window makes an autonomous agent marketplace trustworthy.",
-  "criteria": "Plain language, 2-3 sentences; mentions committee voting and the dispute/arbiter safeguard.",
-  "amount_usdc": 5.0,
+  "tentative": null,
+  "verdict": null,
+  "branch": null,
+  "status": "submitted",
+  "task": "In one clear sentence, explain what a sealed commit-reveal accept race prevents in an open job marketplace.",
+  "criteria": "One sentence; names front-running / MEV of the accept.",
+  "amount_usdc": 1.0,
   "client": "0x6dfbd0ac9feb5bb9a9ffeaf54df203c1633c1ddd",
-  "fund_decision": {
-    "fund": true,
-    "reason": "The task is clear, has reasonable acceptance criteria, and the price is within budget."
-  },
-  "spec_hash": "0x220b305e2a8a0064d3b9f0eb5bef5a3c9170547489be70b973c86022d99808ef",
-  "quorum": 2,
   "commits": {
     "Provider": {
       "addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
-      "tx": "0xae16e44263b4c40b0823b7afc69cb6b0e86156da73f3dd424dd09e63fd4b6097"
+      "tx": "0xa734a706370cb9cebb22ea5a318d86baf9d59fa969c050e6d358ef60372f9510"
     }
   },
-  "provider": "0xef9349b3273b1a54faaf701231f499fe0282e643",
-  "final_status": "Completed",
-  "content_verified": true,
-  "escrow": "0x17f58B3DcCad608867F19A88499f0F11C5F9b5bA",
-  "note": "Live-escrow (hardened v4 0x17f5…b5bA) committee run: 3 independent CAW-wallet evaluators, quorum 2. Evaluators A (deepseek) + C (gemini) judged this deliverable and cast on-chain approve votes → 2-0 quorum → finalize → payout."
+  "provider": "0xef9349b3273b1a54faaf701231f499fe0282e643"
 }
