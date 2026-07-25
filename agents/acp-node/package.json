@@ -1,0 +1,15 @@
+{
+  "name": "agentworks-acp-evaluator",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "AgentWorks ACP evaluator agent — on each submitted ACP job, routes (spec, deliverable) through the AgentWorks M-of-N committee verdict service, then calls session.complete / session.reject. Model A (docs/ACP_ADAPTER.md).",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node --env-file=.env evaluator.mjs"
+  },
+  "dependencies": {
+    "@virtuals-protocol/acp-node-v2": "^0.1.9",
+    "viem": "^2.47.0"
+  }
+}

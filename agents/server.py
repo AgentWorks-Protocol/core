@@ -47,6 +47,7 @@ app.add_middleware(
 )
 
 _REGISTER_TOKEN = os.environ.get("AGENT_REGISTER_TOKEN", "")  # if set, /marketplace/register* requires it
+_ACP_VERDICT_TOKEN = os.environ.get("ACP_VERDICT_TOKEN", "")  # if set, POST /acp/verdict requires it
 
 # Bounds on caller-supplied text so an anonymous request can't bloat the board / platform Irys account.
 _MAX_TASK_LEN = 2000
@@ -438,6 +439,35 @@ async def marketplace_register(body: RegisterBody, authorization: str = Header(d
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Registration failed: {type(e).__name__}: {e}")
+
+
+# ── ACP evaluator adapter (Model A) ──
+# The AgentWorks M-of-N committee, exposed as a verdict service. The Node ACP evaluator agent
+# (agents/acp-node/) POSTs a job's spec + deliverable here on `job.submitted`, and maps the returned
+# `accept` to ACP's session.complete (pay provider) / session.reject (refund client). See docs/ACP_ADAPTER.md.
+class VerdictBody(BaseModel):
+    spec: str
+    deliverable: str
+    quorum: int | None = None
+
+
+@app.post("/acp/verdict")
+def acp_verdict(body: VerdictBody, authorization: str = Header(default="")) -> dict:
+    """Run the M-of-N committee over (spec, deliverable) and return a single quorum verdict for an ACP job.
+    Gated by ACP_VERDICT_TOKEN when set. The committee is the platform's registered evaluators; each member
+    judges independently (own persona + model) and a quorum decides — the on-chain escrow is NOT involved."""
+    _require_token(authorization, _ACP_VERDICT_TOKEN)
+    if len(body.spec) > _MAX_TASK_LEN + _MAX_CRITERIA_LEN:
+        raise HTTPException(status_code=413, detail="spec exceeds the size limit")
+    if len(body.deliverable) > _MAX_DELIVERABLE_LEN:
+        raise HTTPException(status_code=413, detail="deliverable exceeds the size limit")
+    if not body.spec.strip() or not body.deliverable.strip():
+        raise HTTPException(status_code=400, detail="spec and deliverable are both required")
+    import reasoning
+    try:
+        return reasoning.committee_verdict(body.spec, body.deliverable, quorum=body.quorum)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"verdict failed: {type(e).__name__}: {e}")
 
 
 class DirectoryBody(BaseModel):

@@ -156,3 +156,32 @@ def evaluate_member(spec: str, deliverable: str, *, member_name: str = "Evaluato
     d = _json(system, user, api_key=llm.get("api_key"), base_url=llm.get("base_url"), model=llm.get("model"))
     log.info("[reason] evaluate_member(%s, model=%s) -> %s", member_name, llm.get("model") or config.LLM_MODEL, d)
     return d
+
+
+def committee_verdict(spec: str, deliverable: str, *, members=None, quorum: int | None = None) -> dict:
+    """Run the whole M-of-N committee IN-PROCESS and tally to quorum — the pure-reasoning verdict an ACP
+    evaluator adapter returns. Model A never touches our on-chain escrow, so aggregation lives here, mirroring
+    the contract's `castVote` `count >= quorum` rule (AgentWorksEscrowV4.sol). Each member judges independently
+    (own persona + own model via `evaluate_member`).
+
+    Returns {accept, approve, reject, quorum, reasons: [{member, accept, reason}]}. An empty committee falls
+    back to the single-judge `evaluate` so a degenerate 0-member config still yields a verdict (no divide-by-zero).
+    """
+    import registry  # lazy import: registry only needs config (already loaded) — avoids any import-time cycle
+    members = members if members is not None else registry.evaluators()
+    if not members:
+        d = evaluate(spec, deliverable)
+        acc = bool(d.get("accept"))
+        return {"accept": acc, "approve": int(acc), "reject": int(not acc), "quorum": 1,
+                "reasons": [{"member": "Evaluator", "accept": acc, "reason": d.get("reason", "")}]}
+    q = min(max(1, quorum or config.COMMITTEE_QUORUM), len(members))  # clamp to [1, N]
+    reasons, approve = [], 0
+    for m in members:
+        v = evaluate_member(spec, deliverable, member_name=m.name, llm=m.llm())
+        acc = bool(v.get("accept"))
+        reasons.append({"member": m.name, "accept": acc, "reason": v.get("reason", "")})
+        approve += 1 if acc else 0
+    verdict = {"accept": approve >= q, "approve": approve, "reject": len(members) - approve,
+               "quorum": q, "reasons": reasons}
+    log.info("[reason] committee_verdict -> accept=%s (%s/%s of %s)", verdict["accept"], approve, q, len(members))
+    return verdict
