@@ -266,6 +266,9 @@ async def post_job(task: str, criteria: str = "", reward_usdc: float = 5.0, dead
     if not committee:
         return {"error": "committee is required: pass a list of evaluator addresses (odd N) that will vote on "
                          "the deliverable, e.g. committee=['0x..','0x..','0x..']"}
+    if reward_usdc <= 0 or reward_usdc > config.MAX_JOB_REWARD_USDC:
+        return {"error": f"reward_usdc must be in (0, {config.MAX_JOB_REWARD_USDC}] USDC "
+                         f"(per-job real-money ceiling — raise MAX_JOB_REWARD_USDC to widen)"}
     q = quorum or config.COMMITTEE_QUORUM
     w3 = esc.web3()
     # Salt-bound spec hash is id-INDEPENDENT, so we can read the REAL job id from the createJob receipt

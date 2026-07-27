@@ -48,7 +48,6 @@ _DATA_DIR = Path(os.environ["AGENT_DATA_DIR"]) if os.environ.get("AGENT_DATA_DIR
 MARKET_DIR = _DATA_DIR / ".market"
 BOARD_FILE = MARKET_DIR / "board.json"
 RUNS_DIR = MARKET_DIR / "runs"
-BUDGET_USDC = 1000.0
 POLL = 4.0  # seconds between scans
 
 
@@ -271,6 +270,11 @@ async def provider_worker(run: Run, name: str, addr: str, api_key: str, wallet_i
                     if config.PROVIDER_MIN_REWARD_USDC and reward < config.PROVIDER_MIN_REWARD_USDC:
                         attempted.add(job_id)
                         continue  # below the reward floor — a bounded participant ignores dust
+                    if reward > config.MAX_JOB_REWARD_USDC:
+                        attempted.add(job_id)
+                        log.info("[%s] skipping job #%s: reward %.2f USDC exceeds the per-job ceiling %.2f "
+                                 "(real-money anomaly guard)", name, job_id, reward, config.MAX_JOB_REWARD_USDC)
+                        continue  # above the sane per-job ceiling — a job that shouldn't exist on our rails
                     if config.PROVIDER_REQUIRE_KNOWN_COMMITTEE and not await asyncio.to_thread(
                             _committee_trusted, w3, job_id, job.get("quorum", 1)):
                         attempted.add(job_id)

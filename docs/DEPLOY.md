@@ -42,7 +42,7 @@ deploys as a normal static/SSR Next.js app.
 | Live balances + job/run status (viem + agent `/runs`) | ✅ | ✅ |
 | Verified proof artifacts (autonomous runs, criticality beats, Pact JSON) | ✅ | ✅ from committed `web/data/` |
 | Etherscan / Irys deep links | ✅ | ✅ |
-| **New job → trigger** the agents (`POST /trigger`) | ✅ | ✅ (calls the droplet agent service via the same-origin proxy) |
+| **Marketplace** reads + registration/calldata proxy to the droplet agent service (same-origin `/api/agent/*`) | ✅ | ✅ |
 
 **Vercel project settings**
 - **Root Directory:** `web` (recommended). Vercel auto-detects Next.js and walks up to the repo-root
@@ -55,16 +55,18 @@ deploys as a normal static/SSR Next.js app.
   `NEXT_PUBLIC_RPC_URL`, `NEXT_PUBLIC_ESCROW_V4_ADDRESS` (live, committee + disputes), `NEXT_PUBLIC_USDC_ADDRESS`, `NEXT_PUBLIC_CLIENT_CAW`,
   `NEXT_PUBLIC_PROVIDER_CAW`, `NEXT_PUBLIC_PROVIDER_CAW_B`, `NEXT_PUBLIC_EXPLORER_BASE`,
   `NEXT_PUBLIC_IRYS_GATEWAY`, **`NEXT_PUBLIC_AGENT_API`** (the agent-service URL - defaults to the droplet `http://139.59.135.74:8000`; reads proxy through same-origin `/api/agent/*`).
-- **The trigger is OPEN by default** so judges (and anyone) can run the autonomous loop straight from the
-  dashboard "New job" button or by `curl`-ing `/trigger`. No token needed to demo.
-- **Optional production hardening - `AGENT_TRIGGER_TOKEN` (server-only, NOT `NEXT_PUBLIC`):** to stop random
-  callers spending the platform wallet, set the SAME token on **both** the agent service (droplet `agent.env`) and Vercel.
-  The dashboard's "New job" button posts to the same-origin route `web/app/api/trigger/route.ts`, which runs
-  on the server, attaches `Authorization: Bearer <AGENT_TRIGGER_TOKEN>`, and forwards to the agent service -
-  so the token **never reaches the browser** and the button keeps working for everyone. This wiring ships in
-  the codebase already; enabling it is purely setting the env var in both places (no code change). Do **not**
-  set any `CAW_*` / `LLM_API_KEY` / `DEPLOYER_PRIVATE_KEY` on Vercel - those are agent-side secrets the
-  dashboard never uses.
+- **How work starts (current architecture — there is no `/trigger`):** clients open + fund jobs with their
+  OWN wallet via the MCP `post_job` tool or the `/marketplace/*` calldata rail; the platform runs its own
+  **standing agents** (provider + committee) that claim + vote on any open job, plus a neutral settlement
+  watcher. The service never auto-posts jobs.
+- **REAL-MONEY SPEND GATE — `AGENT_ARM_TOKEN` (server-only, NOT `NEXT_PUBLIC`):** the standing agents spend
+  the platform wallet's gas, so on a real-money host they must NOT auto-run at boot. Set `AGENT_ARM_TOKEN` in
+  the droplet `agent.env` (and prefer `PLATFORM_AGENTS=0`): the service then boots **DISARMED** and the agents
+  launch only after an explicit `POST /arm` with the bearer (`POST /disarm` stops them). `/health` reports
+  `arm_protected` + `armed`. On testnet, leave the token blank to auto-start as before. Do **not** set any
+  `CAW_*` / `LLM_API_KEY` / `DEPLOYER_PRIVATE_KEY` on Vercel — those are agent-side secrets the dashboard never
+  uses. *(Legacy `/trigger` + `AGENT_TRIGGER_TOKEN` are removed; the endpoint list below is being repointed to
+  the arm gate in the Base-mainnet doc pass.)*
 
 **`web/data/` (why it's committed):** Next only bundles files under the project root, so a serverless function
 can't `fs`-read sibling `../agents` / `../docs`. `web/scripts/snapshot-proofs.mjs` (run on `predev`/`prebuild`)

@@ -97,24 +97,53 @@ _seed_data_dir()
 # The platform runs its own agents as STANDING participants (provider + committee claim + vote on any open
 # job) and a neutral settlement watcher (permissionless finalize). It NEVER auto-posts jobs — clients post
 # with their own wallet (MCP `post_job` / the calldata rail). There is no demo trigger.
+#
+# REAL-MONEY SAFETY: the standing agents spend the platform wallet. On a real-money chain that must not happen
+# just because the container booted. When AGENT_ARM_TOKEN is set the spend path boots DISARMED — the agents +
+# watcher launch only after an explicit, bearer-gated `POST /arm`. With no arm token (testnet/dev) the legacy
+# behaviour is preserved: honor PLATFORM_AGENTS / SETTLEMENT_WATCHER and auto-start at boot.
 _PLATFORM_AGENTS = os.environ.get("PLATFORM_AGENTS", "1") != "0"
 _WATCHER_ENABLED = os.environ.get("SETTLEMENT_WATCHER", "1") != "0"
+_ARM_TOKEN = os.environ.get("AGENT_ARM_TOKEN", "")  # if set, boot DISARMED; arm via POST /arm with this bearer
 _stop = asyncio.Event()
 _bg_tasks: list[asyncio.Task] = []
+_armed = False
+
+
+def _services_active() -> bool:
+    return any(not t.done() for t in _bg_tasks)
+
+
+def _launch_services() -> dict:
+    """Launch the standing platform agents + settlement watcher if enabled and not already running.
+    Idempotent — a second call while active is a no-op. This is the ONE place the spend path is armed."""
+    global _armed
+    if _services_active():
+        return {"armed": _armed, "already_active": True, "launched": []}
+    _bg_tasks[:] = [t for t in _bg_tasks if not t.done()]  # drop finished tasks from a prior disarm
+    _stop.clear()
+    launched: list[str] = []
+    if _PLATFORM_AGENTS:
+        _bg_tasks.append(asyncio.create_task(autonomous.platform_agents(_stop)))
+        launched.append("platform_agents")
+        log.info("[server] standing platform agents launched")
+    if _WATCHER_ENABLED and autonomous.has_first_party_signer():
+        _bg_tasks.append(asyncio.create_task(autonomous.settlement_watcher(stop=_stop)))
+        launched.append("settlement_watcher")
+        log.info("[server] settlement watcher launched")
+    _armed = True
+    return {"armed": _armed, "already_active": False, "launched": launched}
 
 
 @app.on_event("startup")
 async def _start_services() -> None:
-    if _PLATFORM_AGENTS:
-        _bg_tasks.append(asyncio.create_task(autonomous.platform_agents(_stop)))
-        log.info("[server] standing platform agents launched")
-    else:
-        log.info("[server] platform agents disabled (PLATFORM_AGENTS=0)")
-    if _WATCHER_ENABLED and autonomous.has_first_party_signer():
-        _bg_tasks.append(asyncio.create_task(autonomous.settlement_watcher(stop=_stop)))
-        log.info("[server] settlement watcher launched")
-    else:
-        log.info("[server] settlement watcher disabled (SETTLEMENT_WATCHER=0 or no signer)")
+    if _ARM_TOKEN:
+        log.info("[server] AGENT_ARM_TOKEN set — spend path booted DISARMED; POST /arm to launch agents")
+        return
+    if not (_PLATFORM_AGENTS or _WATCHER_ENABLED):
+        log.info("[server] platform agents + watcher both disabled")
+        return
+    log.info("[server] no arm token — auto-starting: %s", _launch_services().get("launched"))
 
 
 @app.on_event("shutdown")
@@ -125,8 +154,27 @@ async def _stop_services() -> None:
             t.cancel()
 
 
-def _services_active() -> bool:
-    return any(not t.done() for t in _bg_tasks)
+@app.post("/arm")
+async def arm(authorization: str = Header(default="")) -> dict:
+    """Arm the spend path: launch the standing platform agents + settlement watcher. Gated by AGENT_ARM_TOKEN
+    when set. The real-money go switch — a funded mainnet container stays idle until this is called.
+    Must be async: _launch_services() calls asyncio.create_task, which needs the running event loop."""
+    _require_token(authorization, _ARM_TOKEN)
+    return _launch_services()
+
+
+@app.post("/disarm")
+async def disarm(authorization: str = Header(default="")) -> dict:
+    """Disarm the spend path: stop the standing agents + watcher. In-flight settlements already broadcast are
+    unaffected; no NEW spend is initiated once disarmed. Gated by AGENT_ARM_TOKEN when set."""
+    _require_token(authorization, _ARM_TOKEN)
+    global _armed
+    _stop.set()
+    for t in _bg_tasks:
+        if not t.done():
+            t.cancel()
+    _armed = False
+    return {"armed": False, "stopped": True}
 
 
 def _artifacts() -> list[dict]:
@@ -155,6 +203,8 @@ def health() -> dict:
         "register_protected": bool(_REGISTER_TOKEN),
         "platform_agents": _PLATFORM_AGENTS,
         "watcher": {"enabled": _WATCHER_ENABLED, "active": _services_active()},
+        "arm_protected": bool(_ARM_TOKEN),  # real-money posture: spend path requires an explicit POST /arm
+        "armed": _armed,                    # True once the standing agents/watcher are running
     }
 
 
@@ -273,6 +323,10 @@ def marketplace_post_calldata(client_address: str, amount_usdc: float, task: str
         raise HTTPException(status_code=400, detail="committee is required: pass a comma-separated list of "
                             "evaluator addresses (odd N), e.g. committee=0x..,0x..,0x..")
     q = quorum or config.COMMITTEE_QUORUM
+    if amount_usdc <= 0 or amount_usdc > config.MAX_JOB_REWARD_USDC:
+        raise HTTPException(status_code=400,
+                            detail=f"amount_usdc must be in (0, {config.MAX_JOB_REWARD_USDC}] USDC "
+                                   f"(per-job real-money ceiling — raise MAX_JOB_REWARD_USDC to widen)")
     w3 = esc.web3()
     try:
         job_id = esc.next_job_id(w3)  # predicted only — a hint for the fund step; the hash no longer uses it

@@ -24,12 +24,20 @@ def _completion() -> list[dict]:
     return [{"type": "time_elapsed", "threshold": "86400"}]
 
 
-def client_escrow_pact(escrow: str | None = None, usdc: str | None = None, tx_cap: int = 50) -> dict:
+def client_escrow_pact(escrow: str | None = None, usdc: str | None = None, tx_cap: int = 24) -> dict:
     """Client may ONLY contract_call the escrow + USDC contracts, capped at `tx_cap` tx/24h.
 
     Parameterized template (Phase 6.5): the marketplace binds the v2 escrow by passing
     `escrow=config.ESCROW_V2_ADDRESS`. No-arg default stays the v1 escrow so the existing v1
     live journey (flow.py) is unaffected.
+
+    REAL-MONEY NOTE (Week-4 safety pass): CAW enforces two dimensions on this contract_call pact —
+    the contract ALLOWLIST (escrow + USDC only) and the rolling-24h TX COUNT (both proven on-chain:
+    CONTRACT_NOT_WHITELISTED / TRANSFER_LIMIT_EXCEEDED). It does NOT cap the USDC *value*: CAW amount
+    limits are transfer-type, and the escrow moves USDC via approve()+fund() (contract calls that pull
+    through transferFrom), not `caw tx transfer`. The per-job USDC value ceiling is therefore enforced
+    at the marketplace layer where our code sets the amount — server.marketplace_post_calldata /
+    mcp_server.post_job (config.MAX_JOB_REWARD_USDC) — backed by conservative platform-wallet funding.
     """
     escrow = escrow or config.ESCROW_ADDRESS
     usdc = usdc or config.USDC_ADDRESS
@@ -50,7 +58,7 @@ def client_escrow_pact(escrow: str | None = None, usdc: str | None = None, tx_ca
     }
 
 
-def provider_pact(escrow: str | None = None, tx_cap: int = 20) -> dict:
+def provider_pact(escrow: str | None = None, tx_cap: int = 16) -> dict:
     """Provider may ONLY contract_call the escrow contract, capped at `tx_cap` tx/24h.
 
     Parameterized template (Phase 6.5): pass `escrow=config.ESCROW_V2_ADDRESS` for the marketplace.
@@ -75,7 +83,7 @@ def provider_pact(escrow: str | None = None, tx_cap: int = 20) -> dict:
     }
 
 
-def evaluator_pact(escrow: str | None = None, tx_cap: int = 20) -> dict:
+def evaluator_pact(escrow: str | None = None, tx_cap: int = 16) -> dict:
     """Evaluator (committee member) may ONLY contract_call the escrow — to `castVote` — capped at
     `tx_cap` tx/24h. Like the provider Pact, the evaluator allowlist EXCLUDES USDC: a committee member
     can vote on a deliverable but can NEVER move the escrowed funds. Settlement is the contract's
@@ -98,7 +106,7 @@ def evaluator_pact(escrow: str | None = None, tx_cap: int = 20) -> dict:
     }
 
 
-def disputer_pact(escrow: str | None = None, bond_currency: str | None = None, tx_cap: int = 10) -> dict:
+def disputer_pact(escrow: str | None = None, bond_currency: str | None = None, tx_cap: int = 8) -> dict:
     """A party that escalates a disputed outcome may contract_call the escrow (`dispute`) AND the UMA
     bond currency (to `approve` the arbiter adapter to pull the stake). It still CANNOT move the
     escrowed job funds — only the bond currency, only to approve, only the dispute path.
