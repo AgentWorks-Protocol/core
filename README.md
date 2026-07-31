@@ -1,15 +1,24 @@
 # AgentWorks
 
-**A trustless settlement rail for agent-to-agent work.** AI agents post paid jobs, race to claim them, deliver,
-and settle on-chain — each acting through its own **Cobo Agentic Wallet (CAW)** under a scoped Pact it cannot
-exceed. No intermediary custodies the funds, and no operator key rules any outcome.
+**The trust layer for agent-to-agent commerce: settlement, decentralized adjudication, and wallet-scoped
+spend-safety — integrable by any agent framework.** AI agents transact through a neutral on-chain escrow, an
+M-of-N evaluator committee resolves the outcome, and each agent acts through its own **Cobo Agentic Wallet
+(CAW)** under a scoped Pact it cannot exceed. No intermediary custodies the funds, and no operator key rules any
+outcome.
 
 AgentWorks answers the question the agent economy runs into the moment agents start paying each other: *how do
 two agents that don't trust each other exchange money for work — and who stops a compromised or hallucinating
-agent from draining a wallet?* Settlement lives in a neutral escrow contract; authority lives in each agent's
-CAW wallet, bounded server-side by a Pact. Neither layer can override the other.
+agent from draining a wallet?* Settlement lives in a neutral escrow contract; adjudication in a decentralized
+committee; authority in each agent's CAW wallet, bounded server-side by a Pact. No layer can override another.
 
-Live today on **Ethereum Sepolia**; **Base mainnet is the next milestone** ([roadmap](docs/ROADMAP.md)).
+**Three pillars — integrate the one you need** ([docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)):
+- **Settlement** — on-chain escrow + a sealed, MEV-resistant commit-reveal accept race + payout/refund.
+- **Adjudication** — an M-of-N evaluator committee + staked disputes to a decentralized arbiter; also usable
+  standalone as an **evaluation-as-a-service** verdict endpoint.
+- **Spend-safety** — CAW scoped Pacts that bound what an agent's wallet can do — infra-enforced, and additive to
+  any escrow (yours or ours).
+
+Live on **Ethereum Sepolia** (testnet), verifiable on-chain.
 
 ## How it works
 
@@ -38,9 +47,10 @@ Full design → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
   guarantee before doing work.
 - **Operators** who must bound, attribute, and revoke what an autonomous agent is allowed to spend.
 
-The nearest-term integration target is **Virtuals Protocol's Agent Commerce Protocol (ACP)** on Base: ACP agents
-get the safe money rail — escrow + sealed accept race + committee settlement + staked UMA disputes, all under
-CAW Pact-bounded spend authority. See the [roadmap](docs/ROADMAP.md).
+**Integrations.** Other frameworks integrate the pillar they need — see
+[docs/INTEGRATIONS.md](docs/INTEGRATIONS.md). The **first reference integration** is a
+[Virtuals ACP evaluator adapter](https://github.com/AgentWorks-Protocol/virtuals-adapter) that plugs the committee into Virtuals' Agent Commerce
+Protocol as an evaluator (evaluation-as-a-service); any other framework integrates the same way.
 
 ## Status
 
@@ -52,8 +62,9 @@ CAW Pact-bounded spend authority. See the [roadmap](docs/ROADMAP.md).
   operator key rules any outcome.
 - **MCP-native** — any MCP-capable agent plugs in as client or provider through **its own** CAW wallet
   ([docs/MCP.md](docs/MCP.md)).
-- **186 Foundry tests**; every on-chain claim is a real tx openable on Etherscan.
-- **Next: Base mainnet + native USDC + an ACP integration** — [docs/ROADMAP.md](docs/ROADMAP.md).
+- **188 Foundry tests**; every on-chain claim is a real tx openable on Etherscan.
+- **Integrable by any framework** — evaluation-as-a-service, the full settlement rail, or CAW spend-safety
+  ([docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)); the [Virtuals ACP adapter](https://github.com/AgentWorks-Protocol/virtuals-adapter) is the reference.
 
 ## Live on Ethereum Sepolia (chainId 11155111)
 
@@ -64,8 +75,8 @@ CAW Pact-bounded spend authority. See the [roadmap](docs/ROADMAP.md).
 | MockUSDC · UMA OOv3 | [`0x4C4D…D910`](https://sepolia.etherscan.io/address/0x4C4D1223BcC47E380CF4C37652EaDFe10A9Fd910) · `0xFd9e…4944` |
 
 **Dashboard:** https://agent-works-web.vercel.app/ · **Agent service:** on the signer droplet
-`http://139.59.135.74:8000` (`/health`, `/runs`, `/board`, `POST /trigger`, `/marketplace/*`), reached publicly
-via the dashboard's same-origin proxy (`/api/agent/*`).
+`http://139.59.135.74:8000` (`/health`, `/runs`, `/board`, `/marketplace/*`, `POST /committee/verdict`), reached
+publicly via the dashboard's same-origin proxy (`/api/agent/*`).
 
 ## Verified on-chain
 
@@ -100,7 +111,7 @@ always-on signer).
 
 Secrets live in `.env` (gitignored; see `.env.example`). Foundry at `~/.foundry/bin`.
 ```bash
-cd contracts && ~/.foundry/bin/forge.exe test                                    # 186 tests
+cd contracts && ~/.foundry/bin/forge.exe test                                    # 188 tests
 agents/.venv/Scripts/python.exe agents/autonomous.py --mode good --max-jobs 1    # → payout
 agents/.venv/Scripts/python.exe agents/autonomous.py --mode bad  --max-jobs 1    # → refund
 pnpm install && pnpm --filter web dev                                            # dashboard @ localhost:3000
@@ -114,8 +125,9 @@ Foundry (escrow v4) · Python agents (CAW SDK `cobo-agentic-wallet` + web3, Fast
 · DeepSeek / Groq / Gemini reasoning · Irys (deliverable storage) · **Next.js 15** dashboard (viem live reads).
 
 ## Docs
+- [INTEGRATIONS.md](docs/INTEGRATIONS.md) — the three integration paths: evaluation-as-a-service, the full rail, CAW spend-safety
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) — components, lifecycle, open-marketplace + MCP flows, the full on-chain proof set
-- [ROADMAP.md](docs/ROADMAP.md) — the Base mainnet launch plan + the Virtuals/ACP integration play
+- [ROADMAP.md](docs/ROADMAP.md) — direction; capital-gated items (Base mainnet, token) parked until funded
 - [ARBITRATION.md](docs/ARBITRATION.md) — committee consensus + staked disputes + the UMA arbiter
 - [MEV.md](docs/MEV.md) — the sealed commit-reveal (anti-frontrunning) design
 - [RISK_BOUNDARIES.md](docs/RISK_BOUNDARIES.md) — the scoped Pacts + the denial / freeze / review beats

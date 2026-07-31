@@ -60,10 +60,9 @@ docs/DEMO_SCRIPT.md
 docs/DEMO_PLAYBOOK.md
 docs/DEMO_CHEATCARD.md
 docs/DEPLOY_AGENTS.md
-# Virtuals launch/partnership strategy — internal only
+# Virtuals launch/partnership strategy — internal only (also lives in the private virtuals-adapter repo)
 docs/LAUNCH_VIRTUALS.md
 docs/PARTNERSHIP_VIRTUALS.md
-docs/ACP_ADAPTER.md
 agents/scripts/live_v4_keys.json
 agents/scripts/live_v4_dispute_keys.json
 

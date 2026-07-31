@@ -20,14 +20,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-# Arm token MUST be set before importing server (read at module import) so the disarmed-boot path is exercised.
+# Tokens MUST be set before importing server (read at module import): the arm token exercises the disarmed-boot
+# path, and VERDICT_TOKEN gates the committee-verdict routes.
 os.environ["AGENT_ARM_TOKEN"] = "test-arm-token"
+os.environ["VERDICT_TOKEN"] = "test-verdict-token"
 os.environ.setdefault("PLATFORM_AGENTS", "1")
 os.environ.setdefault("SETTLEMENT_WATCHER", "1")
 
 import config          # noqa: E402
 import pacts           # noqa: E402
 import autonomous      # noqa: E402
+import reasoning       # noqa: E402
 import server          # noqa: E402
 from fastapi import HTTPException  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -111,10 +114,36 @@ def test_arm_gate():
         check("POST /disarm -> stopped", r.status_code == 200 and r.json()["armed"] is False)
 
 
+def test_verdict_routes():
+    # Stub the committee so no live LLM/registry is needed; assert the neutral route, the legacy alias, and the gate.
+    reasoning.committee_verdict = lambda spec, deliverable, quorum=None: {
+        "accept": True, "approve": 2, "reject": 1, "quorum": 2,
+        "reasons": [{"member": "Evaluator A", "accept": True, "reason": "ok"}]}
+    body = {"spec": "summarize escrow", "deliverable": "an escrow holds funds until conditions are met"}
+    auth = {"Authorization": "Bearer test-verdict-token"}
+
+    with TestClient(server.app) as client:
+        r = client.post("/committee/verdict", json=body)  # no bearer
+        check("POST /committee/verdict without token -> 401", r.status_code == 401)
+
+        r = client.post("/committee/verdict", json=body, headers=auth)
+        check("POST /committee/verdict -> 200 verdict", r.status_code == 200 and r.json()["accept"] is True)
+
+        r = client.post("/acp/verdict", json=body, headers=auth)  # deprecated alias
+        check("legacy /acp/verdict alias still 200s", r.status_code == 200 and r.json()["approve"] == 2)
+
+        r = client.post("/committee/verdict", json={"spec": " ", "deliverable": " "}, headers=auth)
+        check("blank spec/deliverable -> 400", r.status_code == 400)
+
+    # The token resolver honors VERDICT_TOKEN first, then the legacy ACP_VERDICT_TOKEN fallback.
+    check("VERDICT_TOKEN is the active gate", server._VERDICT_TOKEN == "test-verdict-token")
+
+
 def run():
     test_reward_ceiling()
     test_pact_boundaries()
     test_arm_gate()
+    test_verdict_routes()
     print(f"\nALL {_passed} CHECKS PASSED")
 
 

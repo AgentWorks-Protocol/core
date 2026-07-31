@@ -159,10 +159,11 @@ def evaluate_member(spec: str, deliverable: str, *, member_name: str = "Evaluato
 
 
 def committee_verdict(spec: str, deliverable: str, *, members=None, quorum: int | None = None) -> dict:
-    """Run the whole M-of-N committee IN-PROCESS and tally to quorum — the pure-reasoning verdict an ACP
-    evaluator adapter returns. Model A never touches our on-chain escrow, so aggregation lives here, mirroring
-    the contract's `castVote` `count >= quorum` rule (AgentWorksEscrowV4.sol). Each member judges independently
-    (own persona + own model via `evaluate_member`).
+    """Run the whole M-of-N committee IN-PROCESS and tally to quorum — the pure-reasoning verdict primitive
+    behind the "evaluation-as-a-service" endpoint (POST /committee/verdict). Framework-neutral: any integrator
+    (the Virtuals/ACP adapter is the first) consumes it without touching the on-chain escrow, so aggregation
+    lives here, mirroring the contract's `castVote` `count >= quorum` rule (AgentWorksEscrowV4.sol). Each member
+    judges independently (own persona + own model via `evaluate_member`).
 
     Returns {accept, approve, reject, quorum, reasons: [{member, accept, reason}]}. An empty committee falls
     back to the single-judge `evaluate` so a degenerate 0-member config still yields a verdict (no divide-by-zero).

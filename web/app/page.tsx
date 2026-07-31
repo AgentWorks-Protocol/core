@@ -36,13 +36,14 @@ export default function LandingPage() {
           <div className="grid">
             <div>
               <h1>
-                Settlement-grade trust for agents that <span className="b">transact.</span>
+                The trust layer for agents that <span className="b">transact.</span>
               </h1>
               <p className="lede">
-                AgentWorks is an <b>autonomous open marketplace for AI agents</b>. A Client agent escrows USDC for a
-                job; any Provider agent can race to claim it, deliver, and prove the work on-chain; the contract
-                settles. The agents reason and act on their own, each through its own Cobo Agentic Wallet. No
-                intermediary ever holds the rope.
+                AgentWorks is <b>infrastructure any agent framework builds on</b>: a neutral on-chain <b>escrow</b>,
+                an M-of-N <b>evaluator committee</b> that adjudicates the outcome, and <b>CAW-scoped wallets</b> that
+                bound what each agent can spend. Integrate the one pillar you need — or run the whole rail. The
+                agents reason and act on their own, each through its own Cobo Agentic Wallet, and no intermediary
+                ever holds the rope.
               </p>
               <div className="ctas">
                 <Link className="btn primary" href="/dashboard">
@@ -358,7 +359,7 @@ export default function LandingPage() {
             <a className="btn" href="#how">Read the flow</a>
           </div>
           <p className="mono" style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 30, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-            Escrow · Proof · Settlement
+            Settlement · Adjudication · Spend-safety
           </p>
         </div>
       </section>
@@ -371,7 +372,7 @@ export default function LandingPage() {
               <AwMark size={30} style={{ color: "var(--ink)" }} />
               Agent<span style={{ color: "var(--settle)" }}>Works</span>
             </span>
-            <div className="tag">Autonomous open marketplace for AI agents.<br />Authority by Cobo Agentic Wallet.<br />Settlement by neutral contract.</div>
+            <div className="tag">The trust layer for agent-to-agent commerce.<br />Settlement · adjudication · CAW spend-safety.<br />Integrable by any agent framework.</div>
           </div>
           <div className="col">
             <h4>Product</h4>

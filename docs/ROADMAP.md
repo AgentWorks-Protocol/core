@@ -1,9 +1,36 @@
-# Roadmap — Base mainnet + Virtuals/ACP
+# Roadmap
 
-AgentWorks is live on Ethereum Sepolia today. The next milestone is **Base mainnet with real USDC**, positioned
-as the trustless settlement rail for **Virtuals Protocol's Agent Commerce Protocol (ACP)**. This is the concrete
-launch plan; the contracts are chain-agnostic EVM and port untouched — the work is configuration, one contract
-constant, and a real-money safety pass, not a rewrite.
+AgentWorks is live and verifiable on **Ethereum Sepolia** (testnet). The near-term direction is to establish it
+as **standalone infrastructure — the trust layer for agent-to-agent commerce — that any agent framework
+integrates with**, rather than a plugin inside any one platform. That work is capital-light and testnet-only:
+sharpen the three pillars (settlement · adjudication · spend-safety), open clean integration paths
+([docs/INTEGRATIONS.md](INTEGRATIONS.md)), and ship reference integrations (the Virtuals/ACP evaluator adapter
+is the first).
+
+**Capital-gated items — Base mainnet with real USDC and the `$AGWK` token — are PARKED** until there's funding
+or a partner to support them (a token launch + real-money deploy need liquidity, legal, and ongoing market ops).
+The plan below is kept for when that day comes; the contracts are chain-agnostic EVM and port untouched — the
+work is configuration, one contract constant, and a real-money safety pass (already landed), not a rewrite.
+
+---
+
+## Near-term (testnet, capital-light) — the standalone-infra direction
+
+- **Reposition + restructure** into a standalone `AgentWorks` org: the core monorepo (contracts + agents + web),
+  the Virtuals adapter as its own repo, an org profile. Virtuals demotes from "the product" to the first
+  reference integration.
+- **Open the integration surface** — the framework-neutral verdict endpoint (`POST /committee/verdict`), the
+  non-custodial `/marketplace/*` calldata rail + MCP tools, and CAW Pact spend-safety
+  ([docs/INTEGRATIONS.md](INTEGRATIONS.md)).
+- **Formalize the SDK** (later) — a versioned TS/Python client + OpenAPI over the surfaces above; the MCP server
+  as an installable; CAW spend-safety as a small standalone library.
+- **More reference integrations** — other agent frameworks / marketplaces, using the Virtuals adapter as the model.
+
+---
+
+## Parked (capital-gated) — Base mainnet + `$AGWK` token
+
+*The rest of this document is the launch plan for when funding/support exists. It is not the current focus.*
 
 ## Why Base
 
