@@ -1,56 +1,64 @@
 {
-  "run_id": "e2f8f1fd32",
+  "run_id": "291f4e32bb",
   "job_id": 4,
   "txs": {
-    "commitAccept": "0x5952dd32b62cba5c2e1bae127639f15617b315ad0d01a845e8e7af575694bd60",
-    "revealAccept": "0x7b7472194b39c57daad18cbdec42ff75a637c40036ecfa73d60b6c3a7c10a8b5",
-    "submitWork": "0x792e57da296314e66ecf788f540800e8753b7bc3f576a166abd7d2a86156588e"
+    "commitAccept": "0xc8285e18faeaf2beb54754eb3361346cc469538eac7c9246e9c9d861854caf14",
+    "revealAccept": "0x81329e327f5e4b680b8c4d1a63dd3419aa2634ab446c83934374454c9876ed0e",
+    "submitWork": "0xe2d547c693cec3f57ec8f261983a49ab8af2d06ac1aa8cecf70a7110414b7a36"
   },
   "accept_decisions": {
+    "test'; DROP TABLE agents; --": {
+      "accept": true,
+      "reason": "The task is simple and clear, requiring a one-sentence definition of escrow that meets plain-language criteria, and the reward is fair for the effort."
+    },
+    "RedTeamAgent": {
+      "accept": true,
+      "reason": "The task is straightforward and I can provide a clear, one-sentence definition."
+    },
     "Provider": {
       "accept": true,
-      "reason": "This is a simple writing task with clear criteria and a reasonable reward for minimal effort."
+      "reason": "I can easily provide a one-sentence plain-language definition of escrow."
     }
   },
   "winner": "Provider",
   "winner_addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
   "irys": {
-    "id": "HwkniPTfKVoFegBuc73YBJLnwpFG6QpiNct8GJc4ax3N",
-    "url": "https://devnet.irys.xyz/HwkniPTfKVoFegBuc73YBJLnwpFG6QpiNct8GJc4ax3N",
-    "bytes": 145,
-    "price": "1368667165633",
+    "id": "8UtLxGNBz2Y7NpaH2VxBwVuKMKX6a7A5NJdT6edJfZN2",
+    "url": "https://devnet.irys.xyz/8UtLxGNBz2Y7NpaH2VxBwVuKMKX6a7A5NJdT6edJfZN2",
+    "bytes": 167,
+    "price": "1170232251256",
     "funded": "0"
   },
-  "deliverable": "A sealed commit-reveal accept race prevents front-running and MEV (Miner Extractable Value) of the accept transaction in an open job marketplace.",
+  "deliverable": "Escrow is a financial arrangement where a neutral third party holds and manages money or assets on behalf of two parties until the conditions of a transaction are met.",
   "committee": [],
   "committee_votes": {
+    "Evaluator C": {
+      "addr": "0x124aec0d4f2782591b3be95b520f05779cb30ccb",
+      "accept": true,
+      "reason": "The deliverable provides an accurate, plain-language definition of escrow in exactly one sentence, meeting all specified criteria."
+    },
     "Evaluator B": {
       "addr": "0x78cf963c21268eb384ba24e7c17eb6e5a4b7e5f1",
       "accept": true,
-      "reason": "The deliverable meets the acceptance criteria by providing a clear sentence that explains the prevention of front-running and MEV of the accept transaction."
-    },
-    "Evaluator A": {
-      "addr": "0x48f2a3749a18684c31e322abef3e8e855c116f06",
-      "accept": true,
-      "reason": "The sentence names front-running and MEV of the accept transaction, satisfying the acceptance criteria."
+      "reason": "The deliverable meets all acceptance criteria by providing a single sentence in plain language that defines what an escrow is."
     }
   },
   "vote_txs": {
-    "Evaluator B": "0x69f15f06822c00d30cedeb69983c9ab0f10c3e24bfe44a6038b29a72b849aa7c",
-    "Evaluator A": "0xab6054ca2c156058be839848d30f273ed8048a676e67538465ee4f049e1b1d6a"
+    "Evaluator C": "0xa7fe067d9dd3929a02742bfe404d76f7dfb03c74401d62dd332c84d21535f25c",
+    "Evaluator B": "0xd8a3c36159cb397513d3f33b392820c57a61e8f9cfc1fa79b68a96d3d5603f12"
   },
   "tentative": null,
   "verdict": null,
   "branch": null,
   "status": "submitted",
-  "task": "In one clear sentence, explain what a sealed commit-reveal accept race prevents in an open job marketplace.",
-  "criteria": "One sentence; names front-running / MEV of the accept.",
+  "task": "Define, in exactly one sentence, what an escrow is.",
+  "criteria": "One sentence. Plain language. Non-empty.",
   "amount_usdc": 1.0,
-  "client": "0x6dfbd0ac9feb5bb9a9ffeaf54df203c1633c1ddd",
+  "client": "0x6dFBD0Ac9FEb5Bb9A9FfeAf54Df203c1633C1DDD",
   "commits": {
     "Provider": {
       "addr": "0xef9349b3273b1a54faaf701231f499fe0282e643",
-      "tx": "0x5952dd32b62cba5c2e1bae127639f15617b315ad0d01a845e8e7af575694bd60"
+      "tx": "0xc8285e18faeaf2beb54754eb3361346cc469538eac7c9246e9c9d861854caf14"
     }
   },
   "provider": "0xef9349b3273b1a54faaf701231f499fe0282e643"
