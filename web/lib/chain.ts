@@ -131,6 +131,33 @@ const V4_ESCROWS: { address: `0x${string}`; fromBlock: bigint }[] = [
   { address: CFG.escrowV4Prev, fromBlock: ESCROW_V4_PREV_FROM_BLOCK },
 ];
 
+/** Max block span per getLogs. Public RPCs (incl. Base drpc) reject very large ranges, so event scans are
+ *  windowed — a full deploy-block→latest scan 400s on Base's ~400k-block history. */
+const LOG_WINDOW = 9500n;
+
+/** Scan one event for a jobId across [fromBlock, latest] in newest-first windows, returning the first match.
+ *  Windowed so it works on range-capped RPCs; early-returns (settlements are usually recent). Best-effort. */
+async function scanEvent(
+  address: `0x${string}`,
+  eventName: "JobCompleted" | "JobRejected" | "RefundClaimed",
+  jobId: number,
+  fromBlock: bigint,
+) {
+  const latest = await safe(client.getBlockNumber());
+  if (latest === null) return null;
+  let hi = latest;
+  while (hi >= fromBlock) {
+    const lo = hi - LOG_WINDOW + 1n > fromBlock ? hi - LOG_WINDOW + 1n : fromBlock;
+    const logs = await safe(
+      client.getContractEvents({ address, abi: escrowAbiV4, eventName, args: { jobId: BigInt(jobId) }, fromBlock: lo, toBlock: hi }),
+    );
+    if (logs && logs.length) return logs[0];
+    if (lo <= fromBlock) break;
+    hi = lo - 1n;
+  }
+  return null;
+}
+
 /** Recover a job's settlement (which tx settled it + the outcome) from chain events, for jobs that have no
  *  run artifact. Scans both v4 escrows (live first). Best-effort: null if unreachable/unsupported/unsettled.
  *  Pass `preferEscrow` to constrain the scan to the SAME escrow whose job state is being displayed, so a
@@ -144,24 +171,17 @@ export async function settlementV2(
     ? V4_ESCROWS.filter((e) => e.address.toLowerCase() === preferEscrow.toLowerCase())
     : V4_ESCROWS;
   for (const esc of escrows) {
-    const scan = (eventName: "JobCompleted" | "JobRejected" | "RefundClaimed") =>
-      safe(
-        client.getContractEvents({
-          address: esc.address,
-          abi: escrowAbiV4,
-          eventName,
-          args: { jobId: BigInt(jobId) },
-          fromBlock: esc.fromBlock,
-          toBlock: "latest",
-        }),
-      );
-    const [completed, rejected, refunded] = await Promise.all([scan("JobCompleted"), scan("JobRejected"), scan("RefundClaimed")]);
-    const hit = completed?.[0]
-      ? { outcome: "payout" as const, log: completed[0] }
-      : rejected?.[0]
-        ? { outcome: "refund" as const, log: rejected[0] }
-        : refunded?.[0]
-          ? { outcome: "refund" as const, log: refunded[0] }
+    const [completed, rejected, refunded] = await Promise.all([
+      scanEvent(esc.address, "JobCompleted", jobId, esc.fromBlock),
+      scanEvent(esc.address, "JobRejected", jobId, esc.fromBlock),
+      scanEvent(esc.address, "RefundClaimed", jobId, esc.fromBlock),
+    ]);
+    const hit = completed
+      ? { outcome: "payout" as const, log: completed }
+      : rejected
+        ? { outcome: "refund" as const, log: rejected }
+        : refunded
+          ? { outcome: "refund" as const, log: refunded }
           : null;
     if (hit?.log?.transactionHash) return { outcome: hit.outcome, txHash: hit.log.transactionHash, escrow: esc.address };
   }
