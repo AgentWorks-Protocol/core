@@ -25,10 +25,11 @@ import logging
 import os
 import secrets
 import shutil
+import threading
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -62,6 +63,39 @@ def _require_token(authorization: str, token: str) -> None:
     (constant-time compare so the token can't be recovered via response timing)."""
     if token and not secrets.compare_digest(authorization, f"Bearer {token}"):
         raise HTTPException(status_code=401, detail="missing/invalid bearer token")
+
+
+# ── abuse guards (dependency-free; the agent service is a public HTTP endpoint) ──
+# Several write/compute endpoints are open by design (the open marketplace) or open-by-default when their token
+# is unset. These best-effort, in-process guards blunt anonymous flooding (cost-amplification + subprocess/disk
+# DoS). They reset on restart — a real deployment behind a reverse proxy should also rate-limit at the edge.
+_RL_LOCK = threading.Lock()
+_RL_HITS: dict[str, list[float]] = {}
+
+
+def _rate_limit(request: Request, bucket: str, max_calls: int, window_s: float) -> None:
+    """Fixed-window per-IP rate limit; raises 429 when exceeded."""
+    ip = (request.client.host if request and request.client else "?") + ":" + bucket
+    now = time.time()
+    with _RL_LOCK:
+        hits = [t for t in _RL_HITS.get(ip, ()) if now - t < window_s]
+        if len(hits) >= max_calls:
+            raise HTTPException(status_code=429, detail="rate limit exceeded; slow down")
+        hits.append(now)
+        _RL_HITS[ip] = hits
+        if len(_RL_HITS) > 10_000:  # bound the map so it can't grow without limit
+            for k in [k for k, v in _RL_HITS.items() if not any(now - t < window_s for t in v)]:
+                _RL_HITS.pop(k, None)
+
+
+# Cap concurrent Irys-upload subprocesses so a flood of /deliver calls can't fork-bomb the box.
+_IRYS_SEM = threading.Semaphore(int(os.environ.get("IRYS_MAX_CONCURRENCY", "3")))
+
+
+def _cap(field: str, value: str | None, limit: int) -> None:
+    """Reject over-long caller-supplied strings before they're persisted/processed."""
+    if value is not None and len(value) > limit:
+        raise HTTPException(status_code=413, detail=f"{field} exceeds the {limit}-char limit")
 
 
 # The canonical job spec-hash lives in escrow_v4.spec_hash(task, criteria, salt) — salt-bound and
@@ -424,9 +458,14 @@ class DeliverBody(BaseModel):
 
 
 @app.post("/marketplace/jobs/{job_id}/deliver")
-def marketplace_deliver(job_id: int, body: DeliverBody) -> dict:
+def marketplace_deliver(job_id: int, body: DeliverBody, request: Request) -> dict:
     """Provider deliver helper: store the work on Irys and return the submitWork calldata the provider signs
-    with its OWN CAW wallet. The platform never signs or holds provider keys - it stores + encodes only."""
+    with its OWN CAW wallet. The platform never signs or holds provider keys - it stores + encodes only.
+
+    Open by design (any provider delivers with its own wallet), so it can't require the caller to prove it IS
+    the on-chain provider without auth. Anti-abuse instead: a per-IP rate limit + a hard cap on concurrent Irys
+    upload subprocesses so a flood can't exhaust the box; the job must also be in 'Accepted' state."""
+    _rate_limit(request, "deliver", max_calls=6, window_s=60.0)
     import escrow_v4 as esc
     import irys_store
     from web3 import Web3
@@ -442,11 +481,15 @@ def marketplace_deliver(job_id: int, body: DeliverBody) -> dict:
     if len(body.deliverable) > _MAX_DELIVERABLE_LEN:
         raise HTTPException(status_code=413, detail="deliverable exceeds the size limit")
     dhash = Web3.keccak(text=body.deliverable)
+    if not _IRYS_SEM.acquire(blocking=False):  # too many uploads in flight — shed load instead of forking more
+        raise HTTPException(status_code=503, detail="upload capacity reached; retry shortly")
     try:
         irys = irys_store.upload(body.deliverable,
             {"app": "AgentWorks", "job-id": str(job_id), "content-keccak": Web3.to_hex(dhash)})
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Irys upload failed: {type(e).__name__}: {e}")
+    finally:
+        _IRYS_SEM.release()
     return {
         "job_id": job_id,
         "irys_id": irys.get("id"),
@@ -468,8 +511,21 @@ class RegisterBody(BaseModel):
     tx_cap: int = 0
 
 
+def _validate_registration(wallet_id: str, api_key: str | None, address: str,
+                           role: str, name: str | None, llm_model: str | None = None) -> None:
+    """Bound every caller-supplied field (open registration persists these to disk) + sanity-check the role."""
+    _cap("wallet_id", wallet_id, 128)
+    _cap("api_key", api_key, 512)
+    _cap("address", address, 64)
+    _cap("role", role, 32)
+    _cap("name", name, 128)
+    _cap("llm_model", llm_model, 128)
+    if role not in ("client", "provider", "evaluator"):
+        raise HTTPException(status_code=400, detail="role must be client | provider | evaluator")
+
+
 @app.post("/marketplace/register")
-async def marketplace_register(body: RegisterBody, authorization: str = Header(default="")) -> dict:
+async def marketplace_register(body: RegisterBody, request: Request, authorization: str = Header(default="")) -> dict:
     """Register an external agent in the marketplace.
 
     The platform creates a scoped Pact for the agent using the parameterized template.
@@ -481,6 +537,9 @@ async def marketplace_register(body: RegisterBody, authorization: str = Header(d
     Set AGENT_REGISTER_TOKEN to gate onboarding (curated pool); leave it unset for open self-service.
     """
     _require_token(authorization, _REGISTER_TOKEN)
+    if not _REGISTER_TOKEN:
+        _rate_limit(request, "register", max_calls=6, window_s=60.0)
+    _validate_registration(body.wallet_id, body.api_key, body.address, body.role, body.name)
     try:
         result = await registry.register_external(
             wallet_id=body.wallet_id,
@@ -500,7 +559,7 @@ async def marketplace_register(body: RegisterBody, authorization: str = Header(d
 # ── Committee verdict service (evaluation-as-a-service) ──
 # The AgentWorks M-of-N committee, exposed as a framework-neutral verdict primitive. Any integrator POSTs a
 # job's spec + deliverable and gets one quorum verdict back; the on-chain escrow is NOT involved. This is the
-# reusable adjudication pillar — the Virtuals/ACP adapter (agents/acp-node/) is the FIRST integration to consume
+# reusable adjudication pillar — the Virtuals/ACP adapter (its own repo) is the FIRST integration to consume
 # it (mapping `accept` to ACP's session.complete/reject); others integrate the same way. See docs/INTEGRATIONS.md.
 #
 # FROZEN integration contract:  {spec, deliverable, quorum?}  →  {accept, approve, reject, quorum, reasons[]}
@@ -510,11 +569,16 @@ class VerdictBody(BaseModel):
     quorum: int | None = None
 
 
-def _committee_verdict(body: VerdictBody, authorization: str) -> dict:
+def _committee_verdict(request: Request, body: VerdictBody, authorization: str) -> dict:
     """Run the M-of-N committee over (spec, deliverable) and return a single quorum verdict. Gated by
     VERDICT_TOKEN (legacy ACP_VERDICT_TOKEN honored) when set. Each registered evaluator judges independently
-    (own persona + model) and a quorum decides — the on-chain escrow is NOT involved."""
+    (own persona + model) and a quorum decides — the on-chain escrow is NOT involved.
+
+    A single call fans out to N paid LLM completions, and the gate is open when VERDICT_TOKEN is unset, so a
+    per-IP rate limit blunts anonymous cost-amplification. Set VERDICT_TOKEN in production to require a bearer."""
     _require_token(authorization, _VERDICT_TOKEN)
+    if not _VERDICT_TOKEN:
+        _rate_limit(request, "verdict", max_calls=10, window_s=60.0)
     if len(body.spec) > _MAX_TASK_LEN + _MAX_CRITERIA_LEN:
         raise HTTPException(status_code=413, detail="spec exceeds the size limit")
     if len(body.deliverable) > _MAX_DELIVERABLE_LEN:
@@ -529,16 +593,16 @@ def _committee_verdict(body: VerdictBody, authorization: str) -> dict:
 
 
 @app.post("/committee/verdict")
-def committee_verdict(body: VerdictBody, authorization: str = Header(default="")) -> dict:
+def committee_verdict(body: VerdictBody, request: Request, authorization: str = Header(default="")) -> dict:
     """Framework-neutral evaluation-as-a-service: the M-of-N committee verdict over (spec, deliverable)."""
-    return _committee_verdict(body, authorization)
+    return _committee_verdict(request, body, authorization)
 
 
 @app.post("/acp/verdict")
-def acp_verdict(body: VerdictBody, authorization: str = Header(default="")) -> dict:
+def acp_verdict(body: VerdictBody, request: Request, authorization: str = Header(default="")) -> dict:
     """DEPRECATED alias of POST /committee/verdict — kept so the existing Virtuals adapter keeps working during
     the extraction. New integrations should call /committee/verdict."""
-    return _committee_verdict(body, authorization)
+    return _committee_verdict(request, body, authorization)
 
 
 class DirectoryBody(BaseModel):
@@ -552,7 +616,7 @@ class DirectoryBody(BaseModel):
 
 
 @app.post("/marketplace/register-directory")
-def marketplace_register_directory(body: DirectoryBody, authorization: str = Header(default="")) -> dict:
+def marketplace_register_directory(body: DirectoryBody, request: Request, authorization: str = Header(default="")) -> dict:
     """NON-CUSTODIAL registration (the trustless path). Records a KEYLESS discovery entry — no api_key is
     ever accepted or stored, and the platform binds NO Pact (it can't sign for an external agent). The
     operator self-binds the role's scoped Pact via MCP or the Cobo app, then lists here so others can
@@ -560,6 +624,11 @@ def marketplace_register_directory(body: DirectoryBody, authorization: str = Hea
     stays with CAW (the Pact) + the escrow. Gate with AGENT_REGISTER_TOKEN for a curated pool.
     """
     _require_token(authorization, _REGISTER_TOKEN)
+    if not _REGISTER_TOKEN:
+        _rate_limit(request, "register", max_calls=6, window_s=60.0)
+    _validate_registration(body.wallet_id, None, body.address, body.role, body.name, body.llm_model)
+    _cap("pact_id", body.pact_id, 128)
+    _cap("owner_mode", body.owner_mode, 32)
     try:
         row = registry.register_directory(
             address=body.address, wallet_id=body.wallet_id, role=body.role, name=body.name,

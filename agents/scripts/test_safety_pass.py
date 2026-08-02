@@ -139,11 +139,46 @@ def test_verdict_routes():
     check("VERDICT_TOKEN is the active gate", server._VERDICT_TOKEN == "test-verdict-token")
 
 
+def test_abuse_guards():
+    from types import SimpleNamespace
+    # _cap: over the limit -> 413, at/under -> ok
+    try:
+        server._cap("name", "x" * 200, 128); check("_cap over limit -> 413", False)
+    except HTTPException as e:
+        check("_cap over limit -> HTTP 413", e.status_code == 413)
+    server._cap("name", "ok", 128); check("_cap under limit -> passes", True)
+    server._cap("api_key", None, 512); check("_cap None -> passes", True)
+
+    # _rate_limit: fixed window, per-IP+bucket; N allowed then 429
+    req = SimpleNamespace(client=SimpleNamespace(host="203.0.113.7"))
+    for _ in range(3):
+        server._rate_limit(req, "unittest", max_calls=3, window_s=60.0)
+    try:
+        server._rate_limit(req, "unittest", max_calls=3, window_s=60.0); check("_rate_limit trips 429", False)
+    except HTTPException as e:
+        check("_rate_limit 4th call -> HTTP 429", e.status_code == 429)
+    # a different IP has its own bucket
+    req2 = SimpleNamespace(client=SimpleNamespace(host="203.0.113.8"))
+    server._rate_limit(req2, "unittest", max_calls=3, window_s=60.0)
+    check("_rate_limit is per-IP", True)
+
+    # registration validation rejects an over-long field + a bad role
+    try:
+        server._validate_registration("w", "k", "0xabc", "provider", "n" * 500); check("reg name cap", False)
+    except HTTPException as e:
+        check("registration over-long name -> 413", e.status_code == 413)
+    try:
+        server._validate_registration("w", "k", "0xabc", "hacker", "n"); check("reg role check", False)
+    except HTTPException as e:
+        check("registration bad role -> 400", e.status_code == 400)
+
+
 def run():
     test_reward_ceiling()
     test_pact_boundaries()
     test_arm_gate()
     test_verdict_routes()
+    test_abuse_guards()
     print(f"\nALL {_passed} CHECKS PASSED")
 
 

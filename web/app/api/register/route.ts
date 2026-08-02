@@ -22,6 +22,15 @@ export async function POST(req: NextRequest) {
   if (!BASE) {
     return NextResponse.json({ ok: false, error: "agent service not configured" }, { status: 503 });
   }
+  // Custodial registration transmits a CAW api_key. Refuse to send it over a non-TLS link (the default droplet
+  // is plain HTTP) — it would travel in cleartext. Auto-enables once the agent service is behind HTTPS. Use the
+  // keyless directory path (/api/directory) or register via MCP with your own wallet instead.
+  if (!BASE.startsWith("https://")) {
+    return NextResponse.json(
+      { ok: false, error: "Custodial registration is disabled: it would send your CAW api_key in cleartext over a non-HTTPS agent service. Use keyless directory registration, or register via MCP with your own wallet." },
+      { status: 400 },
+    );
+  }
   let body: unknown = {};
   try {
     body = await req.json();
