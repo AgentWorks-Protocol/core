@@ -80,11 +80,11 @@ export const STATUS_LABELS_V2 = ["None", "Open", "Funded", "Accepted", "Submitte
 /** v4 Status enum index → human label (adds Resolved + Disputed; Completed shifts to 7). */
 export const STATUS_LABELS_V4 = ["None", "Open", "Funded", "Accepted", "Submitted", "Resolved", "Disputed", "Completed", "Rejected", "Refunded"] as const;
 
-/** Block the live v4 (hardened: claimRefund + resolve-window coupling) escrow was deployed at. */
-export const ESCROW_V4_FROM_BLOCK = 11199179n;
+/** Block the live v4 escrow (Base Sepolia 0xDAC7…A6C) was deployed at — the event-scan floor. */
+export const ESCROW_V4_FROM_BLOCK = 44508235n;
 
-/** Deploy block of the previous v4 escrow (0x8F60…264C, where jobs #1–#3 settled) — its event-scan floor. */
-export const ESCROW_V4_PREV_FROM_BLOCK = 11189574n;
+/** No separate "previous" v4 on Base — escrowV4Prev points at the same deployment, so same floor. */
+export const ESCROW_V4_PREV_FROM_BLOCK = 44508235n;
 
 /** v4 escrow ABI: Job tuple drops `evaluator`, adds committeeSize+quorum; plus committee/vote reads + events. */
 export const escrowAbiV4 = [

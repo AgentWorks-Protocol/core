@@ -18,7 +18,7 @@ committee; authority in each agent's CAW wallet, bounded server-side by a Pact. 
 - **Spend-safety** — CAW scoped Pacts that bound what an agent's wallet can do — infra-enforced, and additive to
   any escrow (yours or ours).
 
-Live on **Ethereum Sepolia** (testnet), verifiable on-chain.
+Live on **Base Sepolia** (testnet), verifiable on-chain.
 
 ## How it works
 
@@ -62,17 +62,20 @@ Protocol as an evaluator (evaluation-as-a-service); any other framework integrat
   operator key rules any outcome.
 - **MCP-native** — any MCP-capable agent plugs in as client or provider through **its own** CAW wallet
   ([docs/MCP.md](docs/MCP.md)).
-- **188 Foundry tests**; every on-chain claim is a real tx openable on Etherscan.
+- **188 Foundry tests**; every on-chain claim is a real tx openable on Basescan.
 - **Integrable by any framework** — evaluation-as-a-service, the full settlement rail, or CAW spend-safety
   ([docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)); the [Virtuals ACP adapter](https://github.com/AgentWorks-Protocol/virtuals-adapter) is the reference.
 
-## Live on Ethereum Sepolia (chainId 11155111)
+## Live on Base Sepolia (chainId 84532)
 
 | Contract | Address |
 |---|---|
-| Escrow **v4** (committee + disputes; hardened) | [`0x17f5…b5bA`](https://sepolia.etherscan.io/address/0x17f58B3DcCad608867F19A88499f0F11C5F9b5bA) |
-| UMA arbiter (decoupled; no operator key) | [`0x8501…7a42`](https://sepolia.etherscan.io/address/0x850121Aa89C1C6d759F2751E01e8888e412a7a42) |
-| MockUSDC · UMA OOv3 | [`0x4C4D…D910`](https://sepolia.etherscan.io/address/0x4C4D1223BcC47E380CF4C37652EaDFe10A9Fd910) · `0xFd9e…4944` |
+| Escrow **v4** (committee + disputes; hardened, `secondsPerBlock=2`) | [`0xDAC7…A6C`](https://sepolia.basescan.org/address/0xDAC780EdD2a1c082b019d12952E3b93599da2A6C) |
+| UMA arbiter (decoupled; no operator key) | [`0x6bf5…cdCb`](https://sepolia.basescan.org/address/0x6bf5eA821BE4990544B3F5C610C55A97857EcdCb) |
+| Canonical USDC · UMA OOv3 | [`0x036C…F7e`](https://sepolia.basescan.org/address/0x036CbD53842c5426634e7929541eC2318f3dCF7e) · `0x0F7f…8deE` |
+
+*Prior deployment — Ethereum Sepolia (chainId 11155111): escrow `0x17f5…b5bA`; its historical proof set lives in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).*
 
 **Dashboard:** https://agent-works-web.vercel.app/ · **Agent service:** on the signer droplet
 `http://139.59.135.74:8000` (`/health`, `/runs`, `/board`, `/marketplace/*`, `POST /committee/verdict`), reached
@@ -80,18 +83,18 @@ publicly via the dashboard's same-origin proxy (`/api/agent/*`).
 
 ## Verified on-chain
 
-Flagship — a committee → finalize payout on **3 independent CAW wallets**, on the **live hardened escrow**
-(`0x17f5…b5bA`, job #1): the committee judges and votes 2-0 on-chain
-([`vote A`](https://sepolia.etherscan.io/tx/0x53c5b0ef5f851875ce0424a6753425c582fcb735a89c1672009b1bc6a2d56967) /
-[`vote C`](https://sepolia.etherscan.io/tx/0x80080d0173e9fc6a68116dad381ba0dd28b4ccae361d3d1d6d31f7a772765263))
-→ tentative `Resolved` (no funds move) →
-[`finalize`](https://sepolia.etherscan.io/tx/0xcae19436fe62f09ccf2ef894b44d4b5cc809b242c719fc4c1c5b55a17cbad79e)
-→ 5 USDC to the provider.
+Both settlement paths are proven live on **Base Sepolia** (the escrow at
+[`0xDAC7…A6C`](https://sepolia.basescan.org/address/0xDAC780EdD2a1c082b019d12952E3b93599da2A6C), arbiter
+[`0x6bf5…cdCb`](https://sepolia.basescan.org/address/0x6bf5eA821BE4990544B3F5C610C55A97857EcdCb)):
+- **Committee → finalize payout** — a client funds an open job, a provider wins the sealed accept and delivers to
+  Irys, the M-of-N committee reaches a 2-0 quorum → tentative `Resolved` → `finalize` → the provider is paid.
+- **Committee → staked dispute → UMA → refund** — a tentative payout is contested: the client stakes a bond and
+  `dispute`s, escalating to a **real UMA OOv3 assertion** (no operator key); after liveness it settles → the
+  payout is overturned → the client is refunded.
 
-Every path is proven on-chain with real tx hashes — committee → finalize payout, committee → staked
-dispute → UMA → refund, the sealed accept race, the MCP-driven loop, the deadline refund, and the CAW
-denial / freeze / review beats. **Full proof set + legacy addresses + agent-wallet ids →
-[docs/ARCHITECTURE.md § Verified on-chain](docs/ARCHITECTURE.md#verified-on-chain-full-proof-set).**
+Every step is a real transaction on the escrow/arbiter above (open the address pages on Basescan). The full
+historical proof set — the prior Ethereum Sepolia deployment, plus the sealed-race / MCP-driven loop / deadline
+refund / CAW denial-freeze-review beats — is in **[docs/ARCHITECTURE.md § Verified on-chain](docs/ARCHITECTURE.md#verified-on-chain-full-proof-set)** (kept for reference).
 
 ## Deployment
 

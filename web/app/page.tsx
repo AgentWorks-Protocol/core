@@ -385,7 +385,7 @@ export default function LandingPage() {
             <h4>Protocol</h4>
             <a href="#cobo">Cobo CAW</a>
             <Link href="/brand">Brand system</Link>
-            <a href="https://sepolia.etherscan.io/address/0x17f58B3DcCad608867F19A88499f0F11C5F9b5bA" target="_blank" rel="noreferrer">Escrow contract</a>
+            <a href="https://sepolia.basescan.org/address/0xDAC780EdD2a1c082b019d12952E3b93599da2A6C" target="_blank" rel="noreferrer">Escrow contract</a>
             <a href="https://devnet.irys.xyz" target="_blank" rel="noreferrer">Irys storage</a>
           </div>
           <div className="col">

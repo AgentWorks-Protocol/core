@@ -98,8 +98,8 @@ PROVIDER_MIN_REWARD_USDC = float(os.environ.get("PROVIDER_MIN_REWARD_USDC", "0")
 # ARE the per-job value ceiling. Start conservative on mainnet and widen only after jobs settle cleanly.
 MAX_JOB_REWARD_USDC = float(os.environ.get("MAX_JOB_REWARD_USDC", "100"))
 USDC_ADDRESS = os.environ.get("USDC_TOKEN_ADDRESS", "")
-EXPLORER_TX = "https://sepolia.etherscan.io/tx/{}"
-EXPLORER_ADDR = "https://sepolia.etherscan.io/address/{}"
+EXPLORER_TX = "https://sepolia.basescan.org/tx/{}"
+EXPLORER_ADDR = "https://sepolia.basescan.org/address/{}"
 
 
 # LLM (agent reasoning) - DeepSeek via OpenAI-compatible API

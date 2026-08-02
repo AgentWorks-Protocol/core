@@ -2,12 +2,12 @@
  *  flaky RPC degrades gracefully to the proof snapshots - the dashboard never goes blank. */
 
 import { createPublicClient, http, formatUnits } from "viem";
-import { sepolia } from "viem/chains";
+import { baseSepolia } from "viem/chains";
 import { CFG } from "./config";
 import { escrowAbi, escrowAbiV4, erc20Abi, STATUS_LABELS, STATUS_LABELS_V4, ESCROW_V4_FROM_BLOCK, ESCROW_V4_PREV_FROM_BLOCK } from "./abi";
 
 const client = createPublicClient({
-  chain: sepolia,
+  chain: baseSepolia,
   transport: http(CFG.rpc, { timeout: 6000 }),
 });
 
